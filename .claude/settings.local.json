@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash -n server/bootstrap.sh)",
+      "Bash(sh -n server/agent-set-profile)"
+    ]
+  }
+}

@@ -37,8 +37,18 @@ echo "$AGENT_USER" > /etc/agent/user
 
 # Docker creates a DIRECTORY for a bind-mount source that does not exist, and a
 # directory mounted at ~/.gitconfig breaks git. Create them as files up front.
+#
+# If that has already happened, the container will not start at all: the image
+# has a real /home/node/.gitconfig, and binding a directory over a file fails
+# with ENOTDIR. Repair it here rather than only guarding against it, so that
+# re-running bootstrap.sh actually fixes the box. rmdir, not rm -rf: if docker
+# left anything in there we want to know, not to silently delete it.
 for f in "$ROOT/coder/.gitconfig" "$ROOT/coder/.git-credentials"; do
-  [ -e "$f" ] || install -m 600 -o "$AGENT_USER" -g "$AGENT_USER" /dev/null "$f"
+  if [ -d "$f" ]; then
+    echo "    $f is a directory (docker created it); removing"
+    rmdir "$f"
+  fi
+  [ -f "$f" ] || install -m 600 -o "$AGENT_USER" -g "$AGENT_USER" /dev/null "$f"
 done
 chmod 644 "$ROOT/coder/.gitconfig"
 

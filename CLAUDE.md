@@ -180,7 +180,10 @@ around the build itself), then re-snapshot.
 - `docker0` stays on `172.17.x` even with a `default-address-pools` of
   `172.31.0.0/16`. Match `172.16.0.0/12`.
 - Docker creates a **directory** for a bind-mount source that doesn't exist. The
-  `.gitconfig` and `.git-credentials` files must be pre-created as files.
+  `.gitconfig` and `.git-credentials` files must be pre-created as files. Once it
+  has happened the container will not start at all — runc fails with `not a
+  directory ... MS_BIND`, because the image has a real `/home/node/.gitconfig`
+  and a directory cannot be bound over a file. `bootstrap.sh` repairs this.
 - Unpinned `pecl install redis` can resolve to a version that won't build
   against the pinned PHP — PECL checks compatibility at install, not selection.
   A stale *pin* fails the same way: redis 6.2.0 does not build on PHP 8.5, which
