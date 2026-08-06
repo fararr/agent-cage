@@ -31,11 +31,24 @@ RUN mkdir -p /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # gd, gmp, pgsql and ldap link against the -dev libs above; keep this order.
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
-    && docker-php-ext-configure ldap --with-libdir=lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)" \
-    && docker-php-ext-install -j"$(nproc)" \
+#
+# --enable-gd and --with-ldap are passed explicitly. docker-php-ext-install
+# skips docker-php-ext-configure for any extension that already has a Makefile,
+# so these two are configured ONLY here, and they are the only two that can pick
+# up a bad flag. An extension that configure leaves disabled does not fail
+# configure: it builds nothing, and install-modules later dies on an empty
+# modules/ with `cp: cannot stat 'modules/*'`. Do not rely on phpize's implicit
+# enable (PHP_ALWAYS_SHARED) for an extension we configure by hand.
+#
+# Drop to -j1 when debugging: `make -j install` runs install-modules and
+# install-headers concurrently, which interleaves the error with later output.
+RUN set -eux; \
+    docker-php-ext-configure gd --enable-gd --with-freetype --with-jpeg --with-webp; \
+    docker-php-ext-configure ldap --with-ldap --with-libdir=lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"; \
+    docker-php-ext-install -j"$(nproc)" \
         bcmath calendar exif gd gmp intl ldap mysqli opcache pcntl \
-        pdo_mysql pdo_pgsql pgsql soap sockets zip
+        pdo_mysql pdo_pgsql pgsql soap sockets zip; \
+    php -m
 
 # PEAR/PECL use PHP streams and do NOT read HTTP_PROXY from the environment,
 # so the proxy has to be set in pear's own config or this step hangs.

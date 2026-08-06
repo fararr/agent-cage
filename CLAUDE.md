@@ -180,6 +180,12 @@ around the build itself), then re-snapshot.
   `.gitconfig` and `.git-credentials` files must be pre-created as files.
 - Unpinned `pecl install redis` can resolve to a version that won't build
   against the pinned PHP — PECL checks compatibility at install, not selection.
+- `docker-php-ext-install` skips `docker-php-ext-configure` for any extension
+  that already has a Makefile, so an extension pre-configured by hand (`gd`,
+  `ldap`) uses *only* the flags given there. A configure that leaves an
+  extension disabled exits 0 and builds nothing; the failure surfaces much later
+  as `cp: cannot stat 'modules/*'` from `install-modules` on an empty `modules/`.
+  Pass the enable flag explicitly rather than relying on phpize's implicit one.
 - `tmpfs /tmp` must not be `noexec`; composer and npm execute from there.
 - `sudo` over non-interactive ssh needs `ssh -t`.
 - `rsync -a agent-server/ host:~/agent/` — the trailing slash on the source is
