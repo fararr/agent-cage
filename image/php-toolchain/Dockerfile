@@ -6,7 +6,7 @@ FROM php:${PHP_VERSION}-cli-bookworm
 # Pin PECL extensions explicitly: PECL does not check PHP compatibility when
 # choosing a version, only when installing, so an unpinned `pecl install redis`
 # can resolve to something that will not build against 8.5.
-ARG REDIS_EXT_VERSION=6.2.0
+ARG REDIS_EXT_VERSION=6.3.0
 ARG NODE_MAJOR=24
 
 ENV DEBIAN_FRONTEND=noninteractive

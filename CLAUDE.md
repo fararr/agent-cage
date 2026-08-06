@@ -70,7 +70,7 @@ a network error is usually a missing domain — check
 
 ## Pinned versions
 
-PHP 8.5 (`php:8.5-cli-bookworm`), Composer 2.8, pecl redis 6.2.0, Node 24,
+PHP 8.5 (`php:8.5-cli-bookworm`), Composer 2.8, pecl redis 6.3.0, Node 24,
 Claude Code 2.1.202, Codex 0.145.0. Bump deliberately; both agent images must
 stay on the same PHP version.
 
@@ -146,6 +146,9 @@ what Docker fetches to build them.
 A PHP bump is not one edit. `docker-compose.yml` carries the version in four
 places — the `toolchain` build arg, its `image:` tag, and the `BASE` build arg of
 both agent services — and the Dockerfiles carry defaults that must not disagree.
+A PHP bump also drags `REDIS_EXT_VERSION`, since PECL extensions compile against
+php-src's internal headers and break when those move; check the new PHP's
+release notes for removed extensions and relocated headers *before* building.
 After any bump: `agentctl build` (which flips to `build` and back to `work`
 around the build itself), then re-snapshot.
 
@@ -180,6 +183,9 @@ around the build itself), then re-snapshot.
   `.gitconfig` and `.git-credentials` files must be pre-created as files.
 - Unpinned `pecl install redis` can resolve to a version that won't build
   against the pinned PHP — PECL checks compatibility at install, not selection.
+  A stale *pin* fails the same way: redis 6.2.0 does not build on PHP 8.5, which
+  moved `ext/standard/php_smart_string.h` to `Zend/zend_smart_string.h`. 6.3.0
+  uses the new path (and still builds on 8.4).
 - **Do not put `opcache` in `docker-php-ext-install`.** PHP 8.5 compiles OPcache
   into the binary; it is no longer a shared extension. Installing it configures
   cleanly, builds nothing, and fails late with `cp: cannot stat 'modules/*'`.

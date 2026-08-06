@@ -39,7 +39,7 @@ services:
       dockerfile: php-toolchain/Dockerfile
       args:
         PHP_VERSION: "8.5"
-        REDIS_EXT_VERSION: "6.2.0"
+        REDIS_EXT_VERSION: "6.3.0"
         NODE_MAJOR: "24"
     image: php-toolchain:8.5
     profiles: ["build-only"]
