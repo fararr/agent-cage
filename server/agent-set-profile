@@ -1,0 +1,61 @@
+#!/bin/sh
+# agent-set-profile <build|work|locked|offline>
+#
+# Containers can NEVER route to the internet directly: DOCKER-USER drops all
+# forwarded traffic, unconditionally. The only way out is squid on the host,
+# reached via the docker bridge gateway — that path is the INPUT chain, and
+# which squid port is open there is what defines the profile.
+set -e
+# Wide enough to cover docker0 (172.17.x) and the configured pool (172.31.x).
+DOCKER_NETS=172.16.0.0/12
+AGENT_USER=$(cat /etc/agent/user 2>/dev/null || echo honza)
+
+case "$1" in
+  build)   PORT=3128 ;;
+  work)    PORT=3129 ;;
+  locked)  PORT=3130 ;;
+  offline) PORT="" ;;
+  *) echo "usage: agent-set-profile <build|work|locked|offline>" >&2; exit 1 ;;
+esac
+
+# 1. containers get no direct route out, ever
+iptables -F DOCKER-USER 2>/dev/null || true
+iptables -A DOCKER-USER -j DROP
+
+# 2. squid reachability from the docker bridge == the profile
+iptables -D INPUT -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j ACCEPT 2>/dev/null || true
+iptables -D INPUT -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j REJECT 2>/dev/null || true
+iptables -I INPUT 1 -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j REJECT
+[ -n "$PORT" ] && iptables -I INPUT 1 -s "$DOCKER_NETS" -p tcp --dport "$PORT" -j ACCEPT
+
+# 3. env for `docker compose run`
+GW=$(ip -4 addr show docker0 | awk '/inet /{print $2}' | cut -d/ -f1)
+if [ -n "$PORT" ]; then
+  printf 'HTTP_PROXY=http://%s:%s\nHTTPS_PROXY=http://%s:%s\nNO_PROXY=localhost,127.0.0.1\n' \
+    "$GW" "$PORT" "$GW" "$PORT" > /etc/agent/proxy.env
+else
+  printf 'HTTP_PROXY=\nHTTPS_PROXY=\nNO_PROXY=localhost,127.0.0.1\n' > /etc/agent/proxy.env
+fi
+chmod 644 /etc/agent/proxy.env
+
+# 4. env for BUILDS. BuildKit reads proxies from the client's docker config and
+#    injects them into build containers. Without this, apt inside a build has
+#    neither a proxy nor DNS (DOCKER-USER drops forwarded traffic, including
+#    port 53) and fails with "Temporary failure resolving".
+DOCKER_CFG="/home/${AGENT_USER}/.docker"
+mkdir -p "$DOCKER_CFG"
+if [ -n "$PORT" ]; then
+  cat > "$DOCKER_CFG/config.json" <<JSON
+{ "proxies": { "default": {
+    "httpProxy":  "http://${GW}:${PORT}",
+    "httpsProxy": "http://${GW}:${PORT}",
+    "noProxy":    "localhost,127.0.0.1"
+} } }
+JSON
+else
+  echo '{}' > "$DOCKER_CFG/config.json"
+fi
+chown -R "${AGENT_USER}:${AGENT_USER}" "$DOCKER_CFG"
+echo "$1" > /etc/agent/profile
+netfilter-persistent save >/dev/null 2>&1 || true
+echo "profile: $1${PORT:+ (squid :$PORT)}"

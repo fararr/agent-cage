@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# agentctl — day-to-day control on the server.
+set -euo pipefail
+ROOT="$HOME/agent"
+IMAGE_DIR="$ROOT/image"
+
+case "${1:-}" in
+  net)
+    prof=${2:?usage: agentctl net <build|work|locked|offline>}
+    sudo /usr/local/sbin/agent-set-profile "$prof" ;;
+  status)
+    echo "profile : $(cat /etc/agent/profile 2>/dev/null || echo unknown)"
+    echo "proxy   : $(grep -m1 HTTPS_PROXY /etc/agent/proxy.env 2>/dev/null || true)"
+    free -h | awk 'NR<3'
+    docker ps --format '  {{.Names}}\t{{.Status}}' ;;
+  claude) cd "$IMAGE_DIR"; docker compose run --rm claude ;;
+  codex)  cd "$IMAGE_DIR"; docker compose run --rm codex ;;
+  doctor)
+    echo "profile   : $(cat /etc/agent/profile 2>/dev/null || echo unknown)"
+    echo "proxy.env : $(grep -m1 HTTPS_PROXY /etc/agent/proxy.env || true)"
+    echo "docker cfg: $(jq -c .proxies.default "$HOME/.docker/config.json" 2>/dev/null || echo MISSING)"
+    echo -n "reach     : "
+    docker run --rm --env-file /etc/agent/proxy.env debian:bookworm-slim \
+      sh -c 'apt-get -qq update >/dev/null 2>&1 && echo "apt via proxy OK"' \
+      || echo "FAILED - run: agentctl net build" ;;
+  build)
+    cd "$IMAGE_DIR"
+    sudo /usr/local/sbin/agent-set-profile build
+    docker compose --profile build-only build toolchain
+    docker compose build claude codex
+    sudo /usr/local/sbin/agent-set-profile work ;;
+  deps)   # run dependency installs with registries reachable, then close up
+    shift
+    cd "$IMAGE_DIR"
+    sudo /usr/local/sbin/agent-set-profile build
+    docker compose run --rm --entrypoint /usr/bin/tini claude -- "$@"
+    sudo /usr/local/sbin/agent-set-profile work ;;
+  logs)   sudo tail -f /var/log/squid/access.log ;;
+  *) cat <<USAGE
+usage:
+  agentctl net <build|work|locked|offline>   switch network profile
+  agentctl status                            profile, memory, running containers
+  agentctl build                             build/rebuild all images
+  agentctl claude | codex                    start an agent session
+  agentctl deps -- composer install          run a command with registries open
+  agentctl doctor                            verify the proxy path before building
+  agentctl logs                              watch what the agent is reaching for
+USAGE
+     exit 1 ;;
+esac

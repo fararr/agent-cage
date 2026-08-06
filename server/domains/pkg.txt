@@ -1,0 +1,11 @@
+repo.packagist.org
+packagist.org
+getcomposer.org
+registry.npmjs.org
+pecl.php.net
+pear.php.net
+deb.nodesource.com
+deb.debian.org
+security.debian.org
+files.pythonhosted.org
+pypi.org

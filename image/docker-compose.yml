@@ -1,0 +1,89 @@
+# ~/agent/image/docker-compose.yml
+x-common: &common
+  working_dir: /workspace
+  stdin_open: true
+  tty: true
+  user: "1000:1000"
+  # Reaches squid on the host. Containers have no other route out.
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  env_file: /etc/agent/proxy.env
+  tmpfs:
+    - /tmp:rw,nosuid,size=256m      # NOT noexec — composer/npm exec from /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+  pids_limit: 512
+  mem_limit: 2500m                  # sized for a 4 GB CX23; raise on a bigger box
+  memswap_limit: 4g
+  cpus: 2.0
+  restart: "no"
+
+x-env: &env
+  HOME: /home/node
+  COMPOSER_HOME: /home/node/.composer
+  COMPOSER_CACHE_DIR: /home/node/.composer/cache
+  PIP_CACHE_DIR: /home/node/.cache/pip
+
+x-vols: &vols
+  - ../project_workspace:/workspace
+  - ../coder/.composer:/home/node/.composer
+  - ../coder/.cache/pip:/home/node/.cache/pip
+  - ../coder/.gitconfig:/home/node/.gitconfig:ro
+  - ../coder/.git-credentials:/home/node/.git-credentials:ro
+
+services:
+  toolchain:
+    build:
+      context: .
+      dockerfile: php-toolchain/Dockerfile
+      args:
+        PHP_VERSION: "8.5"
+        REDIS_EXT_VERSION: "6.2.0"
+        NODE_MAJOR: "24"
+    image: php-toolchain:8.5
+    profiles: ["build-only"]
+
+  claude:
+    <<: *common
+    build:
+      context: .
+      dockerfile: claudecode/Dockerfile
+      args:
+        BASE: php-toolchain:8.5
+        CLAUDE_CODE_VERSION: "2.1.202"
+    image: claude-code-local:php8.5-2.1.202
+    volumes:
+      - ../project_workspace:/workspace
+      - ../coder/.claude:/home/node/.claude
+      - ../coder/.composer:/home/node/.composer
+      - ../coder/.cache/pip:/home/node/.cache/pip
+      - ../coder/.gitconfig:/home/node/.gitconfig:ro
+      - ../coder/.git-credentials:/home/node/.git-credentials:ro
+    environment:
+      <<: *env
+      CLAUDE_CONFIG_DIR: /home/node/.claude
+      DISABLE_AUTOUPDATER: "1"
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+    command: ["claude", "--dangerously-skip-permissions"]
+
+  codex:
+    <<: *common
+    build:
+      context: .
+      dockerfile: codex/Dockerfile
+      args:
+        BASE: php-toolchain:8.5
+        CODEX_VERSION: "0.145.0"
+    image: codex-local:php8.5-0.145.0
+    volumes:
+      - ../project_workspace:/workspace
+      - ../coder/.codex:/home/node/.codex
+      - ../coder/.composer:/home/node/.composer
+      - ../coder/.cache/pip:/home/node/.cache/pip
+      - ../coder/.gitconfig:/home/node/.gitconfig:ro
+      - ../coder/.git-credentials:/home/node/.git-credentials:ro
+    environment:
+      <<: *env
+      CODEX_HOME: /home/node/.codex
+    command: ["codex", "--dangerously-bypass-approvals-and-sandbox"]
