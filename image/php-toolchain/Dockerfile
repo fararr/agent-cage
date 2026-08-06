@@ -32,21 +32,16 @@ RUN mkdir -p /etc/apt/keyrings \
 
 # gd, gmp, pgsql and ldap link against the -dev libs above; keep this order.
 #
-# --enable-gd and --with-ldap are passed explicitly. docker-php-ext-install
-# skips docker-php-ext-configure for any extension that already has a Makefile,
-# so these two are configured ONLY here, and they are the only two that can pick
-# up a bad flag. An extension that configure leaves disabled does not fail
-# configure: it builds nothing, and install-modules later dies on an empty
-# modules/ with `cp: cannot stat 'modules/*'`. Do not rely on phpize's implicit
-# enable (PHP_ALWAYS_SHARED) for an extension we configure by hand.
-#
-# Drop to -j1 when debugging: `make -j install` runs install-modules and
-# install-headers concurrently, which interleaves the error with later output.
+# opcache is deliberately NOT in this list. As of PHP 8.5 it is compiled into
+# the binary and is no longer a shared extension, so `docker-php-ext-install
+# opcache` configures cleanly, builds no .so, and then fails on an empty
+# modules/ with `cp: cannot stat 'modules/*'`. Read that error as "this
+# extension produced no module", never as "the compile failed".
 RUN set -eux; \
-    docker-php-ext-configure gd --enable-gd --with-freetype --with-jpeg --with-webp; \
-    docker-php-ext-configure ldap --with-ldap --with-libdir=lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"; \
+    docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp; \
+    docker-php-ext-configure ldap --with-libdir=lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"; \
     docker-php-ext-install -j"$(nproc)" \
-        bcmath calendar exif gd gmp intl ldap mysqli opcache pcntl \
+        bcmath calendar exif gd gmp intl ldap mysqli pcntl \
         pdo_mysql pdo_pgsql pgsql soap sockets zip; \
     php -m
 

@@ -180,12 +180,14 @@ around the build itself), then re-snapshot.
   `.gitconfig` and `.git-credentials` files must be pre-created as files.
 - Unpinned `pecl install redis` can resolve to a version that won't build
   against the pinned PHP — PECL checks compatibility at install, not selection.
-- `docker-php-ext-install` skips `docker-php-ext-configure` for any extension
-  that already has a Makefile, so an extension pre-configured by hand (`gd`,
-  `ldap`) uses *only* the flags given there. A configure that leaves an
-  extension disabled exits 0 and builds nothing; the failure surfaces much later
-  as `cp: cannot stat 'modules/*'` from `install-modules` on an empty `modules/`.
-  Pass the enable flag explicitly rather than relying on phpize's implicit one.
+- **Do not put `opcache` in `docker-php-ext-install`.** PHP 8.5 compiles OPcache
+  into the binary; it is no longer a shared extension. Installing it configures
+  cleanly, builds nothing, and fails late with `cp: cannot stat 'modules/*'`.
+  `cp: cannot stat 'modules/*'` from `install-modules` always means *that
+  extension produced no `.so`* — the extension is built in or unbuildable, not
+  broken. The failing extension is not named in the error: `make -j install`
+  runs `install-modules` and `install-headers` concurrently, so rebuild with
+  `--progress=plain` and read upwards for the last `checking for X ... no`.
 - `tmpfs /tmp` must not be `noexec`; composer and npm execute from there.
 - `sudo` over non-interactive ssh needs `ssh -t`.
 - `rsync -a agent-server/ host:~/agent/` — the trailing slash on the source is
