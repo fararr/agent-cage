@@ -1,2 +1,6 @@
 api.anthropic.com
+platform.claude.com
+claude.ai
+claude.com
 .openai.com
+.chatgpt.com

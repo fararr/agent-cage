@@ -56,7 +56,26 @@ Default is `work`. `locked` is the one that earns the right to skip approvals.
 
 Allowlists: `server/domains/{model,scm,pkg}.txt`. A build failure that looks like
 a network error is usually a missing domain — check
-`sudo tail -30 /var/log/squid/access.log` for `TCP_DENIED`.
+`sudo tail -30 /var/log/squid/access.log` for `TCP_DENIED`. A squid denial
+reaches the agent as `HTTP CONNECT failed with status 403`. Editing a domain
+file needs `squid -k reconfigure` (or `bootstrap.sh`); only *profile* switches
+avoid a reconfigure.
+
+Codex signed in with a **ChatGPT account** talks to `.chatgpt.com`
+(`/backend-api/codex/responses`, plus the `codex_apps` MCP connector), not
+`api.openai.com` — hence `.chatgpt.com` in `model.txt`. Signing in with an
+OpenAI **API key** instead would keep it on `.openai.com` and let that entry go.
+
+Claude Code needs `api.anthropic.com` plus `platform.claude.com` — the latter
+handles Console sign-in *and* OAuth token exchange/refresh for claude.ai
+accounts, so it is required either way — and `claude.ai` / `claude.com` for
+account auth. The rest of its published list is already switched off in
+`docker-compose.yml`: `DISABLE_AUTOUPDATER` drops `downloads.claude.ai`,
+`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` drops both Datadog intake hosts, and
+`ENABLE_CLAUDEAI_MCP_SERVERS=false` drops `mcp-proxy.anthropic.com`. Deliberately
+omitted: `code.claude.com`, which only serves docs lookups — expect the
+`claude-code-guide` agent and pre-approved WebFetch to fail, nothing else.
+Full table: <https://code.claude.com/docs/en/network-config>.
 
 ## Environment facts
 

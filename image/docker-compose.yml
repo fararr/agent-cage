@@ -65,6 +65,10 @@ services:
       CLAUDE_CONFIG_DIR: /home/node/.claude
       DISABLE_AUTOUPDATER: "1"
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+      # claude.ai MCP connectors are on by default and route through
+      # mcp-proxy.anthropic.com. Off, rather than allowlisted: same reasoning as
+      # codex_apps — an unused connector is egress we do not want to justify.
+      ENABLE_CLAUDEAI_MCP_SERVERS: "false"
     command: ["claude", "--dangerously-skip-permissions"]
 
   codex:
