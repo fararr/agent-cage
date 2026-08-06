@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # agent-server
 
 Sandbox for running coding agents (Claude Code, Codex CLI) against PHP projects
@@ -82,6 +86,68 @@ laptop/     hcloud-setup.sh, snapshot.sh  → run on the operator's Mac
 `php-toolchain:8.5` carries PHP, 15 extensions, Composer and Node — a ~12 minute
 build. The two agent images are five-line children adding only their CLI, so a
 version bump rebuilds in a minute and the PHP versions cannot drift apart.
+
+## Working on this repo
+
+**Nothing here runs in the checkout.** This is a tree of shell scripts, a squid
+config and Dockerfiles that only take effect once they are on the box. Editing a
+file changes nothing until it is deployed; `bootstrap.sh` *copies*
+`squid.conf` and `domains/*.txt` into `/etc/squid/` and installs `agentctl` and
+`agent-set-profile` into `/usr/local/{bin,sbin}` — nothing is symlinked, so a
+change to any of them needs a redeploy, not just an rsync.
+
+The loop:
+
+```bash
+rsync -a agent-server/ honza@<server-ip>:~/agent/      # trailing slash!
+ssh -t honza@<server-ip> 'cd ~/agent/server && sudo bash bootstrap.sh'
+ssh honza@<server-ip> 'agentctl doctor'                # ~30s, proves the proxy path
+```
+
+There is no test suite and no CI. What you can check before deploying:
+
+```bash
+bash -n server/bootstrap.sh server/agentctl server/setup-git.sh laptop/*.sh
+sh -n server/agent-set-profile          # /bin/sh, not bash
+shellcheck server/* laptop/*.sh         # in the toolchain image
+docker compose -f image/docker-compose.yml config -q
+sudo squid -k parse                     # on the box only, after deploying
+```
+
+Day-to-day on the box: `agentctl status`, `agentctl net <profile>`,
+`agentctl build`, `agentctl claude|codex`, `agentctl deps -- composer install`
+(opens registries, then closes them again), `agentctl logs`.
+
+## Where a profile actually lives
+
+`agent-set-profile` is the only place the four representations of "the current
+profile" are kept in step, and they are not interchangeable:
+
+1. `iptables INPUT` — REJECT 3128-3130 from `172.16.0.0/12`, then ACCEPT the one
+   port for this profile. This is the enforcement; the rest is plumbing.
+2. `/etc/agent/profile` — the string, read back by `agentctl status` and by
+   `agent-profile.service` to re-apply the rules after a reboot.
+3. `/etc/agent/proxy.env` — `env_file` for `docker compose run`, i.e. runtime.
+4. `~honza/.docker/config.json` — BuildKit's proxies, i.e. build time. Missing
+   this is the `Temporary failure resolving deb.debian.org` failure above.
+
+Adding or renaming a profile therefore touches four files: `agent-set-profile`
+(the port map), `squid.conf` (`http_port` + `acl myportname` + `http_access`),
+`agentctl` (usage text), and the tables in this file and `README.md`.
+
+Note that the **docker daemon itself is not proxied**. Image pulls are host
+process traffic (OUTPUT chain), so `DOCKER-USER` never sees them and they reach
+the internet directly in every profile, `offline` included — only the Hetzner
+firewall's 443 rule applies. Squid constrains what runs *in* containers, not
+what Docker fetches to build them.
+
+## Changing pinned versions
+
+A PHP bump is not one edit. `docker-compose.yml` carries the version in four
+places — the `toolchain` build arg, its `image:` tag, and the `BASE` build arg of
+both agent services — and the Dockerfiles carry defaults that must not disagree.
+After any bump: `agentctl build` (which flips to `build` and back to `work`
+around the build itself), then re-snapshot.
 
 ## Decisions already made (do not relitigate without new information)
 
