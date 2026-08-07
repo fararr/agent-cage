@@ -36,11 +36,16 @@ case "${1:-}" in
     docker compose build claude codex ;;
   deps)   # run dependency installs with registries reachable, then close up
     shift
+    # Tolerate both `deps -- cmd` and `deps cmd`. The image ENTRYPOINT is
+    # already ["/usr/bin/tini", "--"], so overriding it and adding another `--`
+    # here handed tini a program literally named `--`: exec -- failed.
+    if [ "${1:-}" = "--" ]; then shift; fi
+    [ $# -gt 0 ] || { echo "usage: agentctl deps -- <command>" >&2; exit 1; }
     cd "$IMAGE_DIR"
     prev=$(cat /etc/agent/profile 2>/dev/null || echo work)
     trap 'sudo /usr/local/sbin/agent-set-profile "$prev"' EXIT
     sudo /usr/local/sbin/agent-set-profile build
-    docker compose run --rm --entrypoint /usr/bin/tini claude -- "$@" ;;
+    docker compose run --rm claude "$@" ;;
   logs)   sudo tail -f /var/log/squid/access.log ;;
   *) cat <<USAGE
 usage:

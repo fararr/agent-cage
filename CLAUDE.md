@@ -135,7 +135,8 @@ sudo squid -k parse                     # on the box only, after deploying
 
 Day-to-day on the box: `agentctl status`, `agentctl net <profile>`,
 `agentctl build`, `agentctl claude|codex`, `agentctl deps -- composer install`
-(opens registries, then closes them again), `agentctl logs`.
+(opens registries, then restores the profile you were on — which is `build`
+itself if that is where you already were), `agentctl logs`.
 
 ## Where a profile actually lives
 
@@ -227,7 +228,9 @@ around the build itself), then re-snapshot.
   dependency installs run from the **host** via `agentctl deps`, which sets the
   profile first and then starts a fresh container. `composer install` typed
   inside a live `agentctl claude` session cannot reach the registries, and no
-  amount of `agentctl net build` from another shell will change that.
+  amount of `agentctl net build` from another shell will change that. An agent
+  that must install its own dependencies needs the session *started* on build:
+  `agentctl net build && agentctl claude`, back to `work` afterwards.
 - Changing `DOCKER_NETS` orphans the rules saved under the old value:
   `agent-set-profile` deletes by exact spec, and `netfilter-persistent` reloads
   what it saved. After such a change, check `sudo iptables -S INPUT` for rules

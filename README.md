@@ -19,7 +19,7 @@ Hetzner Cloud Firewall     outside the server — root on the box cannot touch i
       └─ container         no route out except squid; agent runs here
 ```
 
-## Install — 7 steps
+## Install — 7 steps plus prerequisites
 
 Steps 0-3 and 7 run on your laptop, 4-6 on the server. Do them in this order:
 the perimeter goes up *before* anything starts listening.
@@ -134,28 +134,48 @@ That snapshot is your rollback point: images built, both CLIs authenticated.
 ```bash
 ssh honza@<server-ip>
 tmux new -s work
-
 agentctl status                       # profile, memory, containers
-agentctl deps -- composer install     # registries open, then auto-closed
-agentctl claude                       # work
-agentctl net locked                   # before leaving it running
 agentctl logs                         # watch what it reaches for
 ```
 
+**A container reads its proxy port once, at startup.** Everything below follows
+from that: you choose the profile *before* starting a session, and changing it
+afterwards does not reach that session — it closes the port the session is
+already using, taking its network away rather than widening it.
+
+So pick the session shape by whether the agent installs its own dependencies:
+
+```bash
+# It does — attended work. Registries reachable for the whole session.
+agentctl net build && agentctl claude
+agentctl net work                     # or locked, when you step away
+
+# It doesn't — session stays on `work`, deps run from the host.
+agentctl claude                       # second window:
+agentctl deps -- composer install     # separate container, same /workspace
+```
+
+`agentctl deps` flips to `build`, runs one short-lived container against the
+same `../project_workspace` mount, and restores your profile on the way out —
+including when the command fails. `vendor/` lands where the session sees it.
+
+It restores the profile you *were* on, not `work`. Start from `build` and it
+prints `profile: build` on both sides; that is the restore working, not failing
+to close.
+
+The first shape is the convenient one and costs you the supply chain: the agent
+can pull anything from packagist and npm until the session ends. Fine while
+you're watching it, wrong for anything unattended — `locked` is what earns the
+right to skip per-command approval.
+
 Detach with `Ctrl-b d`; the session survives disconnection. Reattach with
 `tmux a -t work`.
-
-Run `agentctl deps` **from the host**, in a second window. A container reads its
-proxy port once at startup, so switching profiles around a session that is
-already running does not open the registries to it — it closes the port that
-session is using. `composer install` typed at the agent inside `agentctl claude`
-will get a 403 no matter what profile the host is on.
 
 ## Network profiles
 
 | profile | model API | git hosting | registries | use for |
 |---------|-----------|-------------|------------|---------|
-| `build`   | ✓ | ✓ | ✓ | `composer install`, `npm ci` |
+| `build`   | ✓ | ✓ | ✓ | `agentctl build`, `deps`, attended sessions that install their own deps |
 | `work`    | ✓ | ✓ | — | **default** |
 | `locked`  | ✓ | — | — | unattended runs, untrusted repos |
 | `offline` | — | — | — | executing code you don't trust |
