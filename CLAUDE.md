@@ -221,6 +221,17 @@ around the build itself), then re-snapshot.
   runs `install-modules` and `install-headers` concurrently, so rebuild with
   `--progress=plain` and read upwards for the last `checking for X ... no`.
 - `tmpfs /tmp` must not be `noexec`; composer and npm execute from there.
+- A container's proxy port is fixed when it starts, from `/etc/agent/proxy.env`.
+  Switching profiles from another terminal does not reach a session already
+  running — it *closes* the port that session is still pointing at. So
+  dependency installs run from the **host** via `agentctl deps`, which sets the
+  profile first and then starts a fresh container. `composer install` typed
+  inside a live `agentctl claude` session cannot reach the registries, and no
+  amount of `agentctl net build` from another shell will change that.
+- Changing `DOCKER_NETS` orphans the rules saved under the old value:
+  `agent-set-profile` deletes by exact spec, and `netfilter-persistent` reloads
+  what it saved. After such a change, check `sudo iptables -S INPUT` for rules
+  carrying the previous subnet and delete them by hand.
 - `sudo` over non-interactive ssh needs `ssh -t`.
 - `rsync -a agent-server/ host:~/agent/` — the trailing slash on the source is
   load-bearing.

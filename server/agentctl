@@ -48,7 +48,8 @@ usage:
   agentctl status                            profile, memory, running containers
   agentctl build                             build/rebuild all images
   agentctl claude | codex                    start an agent session
-  agentctl deps -- composer install          run a command with registries open
+  agentctl deps -- composer install          registries open; run from the host,
+                                             not inside a live agent session
   agentctl doctor                            verify the proxy path before building
   agentctl logs                              watch what the agent is reaching for
 USAGE

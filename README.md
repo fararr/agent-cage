@@ -145,6 +145,12 @@ agentctl logs                         # watch what it reaches for
 Detach with `Ctrl-b d`; the session survives disconnection. Reattach with
 `tmux a -t work`.
 
+Run `agentctl deps` **from the host**, in a second window. A container reads its
+proxy port once at startup, so switching profiles around a session that is
+already running does not open the registries to it — it closes the port that
+session is using. `composer install` typed at the agent inside `agentctl claude`
+will get a 403 no matter what profile the host is on.
+
 ## Network profiles
 
 | profile | model API | git hosting | registries | use for |
