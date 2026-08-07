@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(bash -n server/bootstrap.sh)",
-      "Bash(sh -n server/agent-set-profile)"
+      "Bash(sh -n server/agent-set-profile)",
+      "Bash(bash -n server/bootstrap.sh server/setup-git.sh server/agentctl laptop/*.sh)"
     ]
   }
 }

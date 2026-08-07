@@ -96,4 +96,4 @@ systemctl enable agent-profile.service
 
 echo
 echo "Done. Log out and back in so the docker group applies, then:"
-echo "  cd ~/agent && bash setup-git.sh"
+echo "  cd ~/agent/server && bash setup-git.sh"

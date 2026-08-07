@@ -43,10 +43,10 @@ fi
 cat <<'NEXT'
 
 Next:
-  cd ~/agent/image
-  sudo /usr/local/sbin/agent-set-profile build
-  docker compose --profile build-only build toolchain   # ~12 min, once
-  docker compose build claude codex
-  docker compose run --rm claude       # log in, then /exit
-  sudo /usr/local/sbin/agent-set-profile work
+  agentctl net build     # doctor needs the registries reachable
+  agentctl doctor        # proves the proxy path, ~30s
+  agentctl net work
+  agentctl build         # ~12 min once for php-toolchain, then ~1 min each
+  agentctl claude        # log in, then /exit
+  agentctl codex         # log in, then exit
 NEXT

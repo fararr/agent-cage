@@ -19,9 +19,36 @@ Hetzner Cloud Firewall     outside the server — root on the box cannot touch i
       └─ container         no route out except squid; agent runs here
 ```
 
-## Install — 6 steps
+## Install — 7 steps
 
-### 1. Copy this tree to the server
+Steps 1-3 and 7 run on your laptop, 4-6 on the server. Do them in this order:
+the perimeter goes up *before* anything starts listening.
+
+### 1. Create the server (laptop)
+
+```bash
+brew install hcloud                  # or apt
+hcloud context create agent          # paste an API token from the Hetzner console
+hcloud server create --name <server-name> --type cx23 \
+  --image ubuntu-24.04 --ssh-key <your-key-name> --location <fsn1|nbg1|hel1>
+```
+
+The only unscripted step. Adjust image and location to taste; the type matters
+(CX23 = 2 vCPU / 4 GB / 40 GB). Recreating from a snapshot instead? Use
+`--image <snapshot-id>` and skip to step 7.
+
+### 2. Lock the perimeter (laptop) — do this before step 4
+
+```bash
+bash laptop/hcloud-setup.sh <server-name>
+```
+
+SSH from your IP only; outbound limited to 80/443/53. **This must precede
+`bootstrap.sh`**, which starts squid: a proxy listening on a public interface
+with no firewall in front of it gets found by scanners within minutes. Re-run
+whenever your home IP changes.
+
+### 3. Copy this tree to the server (laptop)
 
 ```bash
 rsync -a agent-server/ honza@<server-ip>:~/agent/
@@ -32,7 +59,7 @@ The **trailing slash on the source matters**: it copies the *contents* of
 `~/agent/laptop/`. Without it you would get `~/agent/agent-server/server/`.
 Check with `ssh honza@<server-ip> ls ~/agent`.
 
-### 2. Bootstrap (on the server)
+### 4. Bootstrap (server)
 
 ```bash
 ssh -t honza@<server-ip> 'cd ~/agent/server && sudo bash bootstrap.sh'
@@ -42,20 +69,10 @@ ssh -t honza@<server-ip> 'cd ~/agent/server && sudo bash bootstrap.sh'
 again (a fresh session) so the `docker` group membership applies.
 
 Installs Docker, squid, 4 GB swap, the profile switcher, and the directory
-layout. Idempotent.
+layout. Idempotent — this is also the repair path, so re-run it rather than
+patching files on the box.
 
-### 3. Lock the perimeter (from your laptop)
-
-```bash
-brew install hcloud   # or apt
-hcloud context create agent      # paste an API token from the Hetzner console
-bash laptop/hcloud-setup.sh <server-name>
-```
-
-SSH from your IP only; outbound limited to 80/443/53. Re-run when your home IP
-changes.
-
-### 4. Git identity and credentials (on the server)
+### 5. Git identity and credentials (server)
 
 ```bash
 cd ~/agent/server && bash setup-git.sh
@@ -69,16 +86,31 @@ Scope the PAT to the specific repositories, Contents: read and write, nothing
 else. The agent can read this file — it has to, in order to push. Tight scoping
 is the control, not secrecy.
 
-### 5. Build images and log in
+### 6. Build images and log in (server)
 
 ```bash
-agentctl net build && agentctl doctor    # confirm apt works through squid
+agentctl net build      # doctor needs the registries reachable
+agentctl doctor         # proves the proxy path, ~30s — run before any long build
+agentctl net work
 agentctl build          # ~12 min once for php-toolchain, then ~1 min each
+                        # opens `build` itself and restores your profile after
+
 agentctl claude         # log in, then /exit
 agentctl codex          # log in, then exit
 ```
 
-### 6. Snapshot the working state (from your laptop)
+Then confirm the network model is actually in force:
+
+```bash
+agentctl status                                   # profile : work
+sudo iptables -S INPUT | grep -E '312[89]|3130'   # one ACCEPT, one REJECT, one DROP
+```
+
+Three rules exactly: `ACCEPT` the profile's port from `172.16.0.0/12`, `REJECT`
+all three from `172.16.0.0/12`, `DROP` all three from everywhere else. Stray
+single-port `ACCEPT` lines mean an old profile was never closed.
+
+### 7. Snapshot the working state (laptop)
 
 ```bash
 bash laptop/snapshot.sh save <server-name>
@@ -115,7 +147,7 @@ Detach with `Ctrl-b d`; the session survives disconnection. Reattach with
 each command: reachable destinations are `api.anthropic.com` and nothing else,
 so there is nowhere to exfiltrate to and nothing hostile to pull in.
 
-Enforcement has two independent layers, neither inside the container:
+Enforcement has three independent layers, none inside the container:
 
 - `DOCKER-USER -j DROP` — containers can never route out directly, in any
   profile. The only path is squid, reached via the docker bridge gateway. This
@@ -123,6 +155,12 @@ Enforcement has two independent layers, neither inside the container:
   on the far side of the proxy. That closes DNS tunnelling as an exfil channel,
   and it means anything in a container that ignores `HTTP_PROXY` simply fails.
 - Which squid port is open in `INPUT` from the docker subnet *is* the profile.
+  Switching profiles closes the previous port, so repointing `HTTP_PROXY` at
+  another one reaches nothing.
+- Everything outside `172.16.0.0/12` is refused both in `INPUT` and in
+  `squid.conf`. The profile ACLs are keyed on port with no source restriction,
+  so without this, anyone who could reach an open port could use the proxy for
+  whatever that port allows.
 
 Unsetting `HTTP_PROXY` inside the container therefore achieves nothing.
 
