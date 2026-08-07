@@ -22,11 +22,30 @@ esac
 iptables -F DOCKER-USER 2>/dev/null || true
 iptables -A DOCKER-USER -j DROP
 
-# 2. squid reachability from the docker bridge == the profile
-iptables -D INPUT -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j ACCEPT 2>/dev/null || true
-iptables -D INPUT -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j REJECT 2>/dev/null || true
+# 2. squid reachability from the docker bridge == the profile.
+#
+#    Delete by the exact spec the rule was added with. An earlier version
+#    deleted a *multiport* ACCEPT that was never added, while adding a
+#    *single-port* one, so every port ever opened stayed open: after one
+#    `net build`, a container reached 3128 again just by pointing HTTP_PROXY at
+#    it, and netfilter-persistent carried that across reboots. Loop, because
+#    duplicates have probably already accumulated.
+for p in 3128 3129 3130; do
+  while iptables -D INPUT -s "$DOCKER_NETS" -p tcp --dport "$p" -j ACCEPT 2>/dev/null; do :; done
+done
+while iptables -D INPUT -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j REJECT 2>/dev/null; do :; done
+while iptables -D INPUT -p tcp -m multiport --dports 3128,3129,3130 -j DROP 2>/dev/null; do :; done
+
+#    Anything that is not a container is dropped outright. squid's ACLs are
+#    keyed on port, not source, so any host that reaches an open port can use
+#    the proxy for every destination that port allows. Inserted first so it
+#    lands *below* the docker rules: accept the profile port, reject the other
+#    two from containers, drop all three from everywhere else.
+iptables -I INPUT 1 -p tcp -m multiport --dports 3128,3129,3130 -j DROP
 iptables -I INPUT 1 -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j REJECT
-[ -n "$PORT" ] && iptables -I INPUT 1 -s "$DOCKER_NETS" -p tcp --dport "$PORT" -j ACCEPT
+if [ -n "$PORT" ]; then
+  iptables -I INPUT 1 -s "$DOCKER_NETS" -p tcp --dport "$PORT" -j ACCEPT
+fi
 
 # 3. env for `docker compose run`
 GW=$(ip -4 addr show docker0 | awk '/inet /{print $2}' | cut -d/ -f1)

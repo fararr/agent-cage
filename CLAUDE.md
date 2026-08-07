@@ -182,7 +182,11 @@ around the build itself), then re-snapshot.
   uses iptables-nft and a separate `inet filter` table fights with its chains.
 - **Profiles keyed on squid *port*, not source IP** — carried over from the Lima
   design where all instances shared a guest address; kept because it avoids
-  `squid -k reconfigure` on every switch.
+  `squid -k reconfigure` on every switch. The port selects *which* profile;
+  it is never the only control. `squid.conf` also denies any source outside
+  `172.16.0.0/12`, and `agent-set-profile` drops 3128-3130 from everywhere but
+  the docker subnet — otherwise reaching an open port from outside is enough to
+  use the proxy, since the profile ACLs carry no source restriction.
 - **Fine-grained PAT, mounted read-only at `/home/node/.git-credentials`** — the
   agent can read it because it must push. Tight repo scoping is the control, not
   secrecy. Rotate after any suspicious session.
