@@ -21,14 +21,21 @@ Hetzner Cloud Firewall     outside the server — root on the box cannot touch i
 
 ## Install — 7 steps
 
-Steps 1-3 and 7 run on your laptop, 4-6 on the server. Do them in this order:
+Steps 0-3 and 7 run on your laptop, 4-6 on the server. Do them in this order:
 the perimeter goes up *before* anything starts listening.
 
-### 1. Create the server (laptop)
+### 0. Prerequisites (laptop)
 
 ```bash
 brew install hcloud                  # or apt
 hcloud context create agent          # paste an API token from the Hetzner console
+```
+
+Needed however the server was made: steps 2 and 7 both drive the CLI.
+
+### 1. Create the server (laptop) — skip if you made it in the web console
+
+```bash
 hcloud server create --name <server-name> --type cx23 \
   --image ubuntu-24.04 --ssh-key <your-key-name> --location <fsn1|nbg1|hel1>
 ```
@@ -36,6 +43,10 @@ hcloud server create --name <server-name> --type cx23 \
 The only unscripted step. Adjust image and location to taste; the type matters
 (CX23 = 2 vCPU / 4 GB / 40 GB). Recreating from a snapshot instead? Use
 `--image <snapshot-id>` and skip to step 7.
+
+Creating it in the console is fine — but note that a console-created server has
+**no Cloud Firewall attached**, so step 2 is doing real work, not repeating
+something the console already did.
 
 ### 2. Lock the perimeter (laptop) — do this before step 4
 
