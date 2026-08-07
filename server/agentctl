@@ -25,16 +25,22 @@ case "${1:-}" in
       || echo "FAILED - run: agentctl net build" ;;
   build)
     cd "$IMAGE_DIR"
+    # Close up however we leave, including a failed build. Without the trap,
+    # `set -e` exits before the restore and the box stays on `build`, the most
+    # permissive profile. Restore what was actually set, not a hardcoded `work`,
+    # so this cannot quietly downgrade a `locked` box.
+    prev=$(cat /etc/agent/profile 2>/dev/null || echo work)
+    trap 'sudo /usr/local/sbin/agent-set-profile "$prev"' EXIT
     sudo /usr/local/sbin/agent-set-profile build
     docker compose --profile build-only build toolchain
-    docker compose build claude codex
-    sudo /usr/local/sbin/agent-set-profile work ;;
+    docker compose build claude codex ;;
   deps)   # run dependency installs with registries reachable, then close up
     shift
     cd "$IMAGE_DIR"
+    prev=$(cat /etc/agent/profile 2>/dev/null || echo work)
+    trap 'sudo /usr/local/sbin/agent-set-profile "$prev"' EXIT
     sudo /usr/local/sbin/agent-set-profile build
-    docker compose run --rm --entrypoint /usr/bin/tini claude -- "$@"
-    sudo /usr/local/sbin/agent-set-profile work ;;
+    docker compose run --rm --entrypoint /usr/bin/tini claude -- "$@" ;;
   logs)   sudo tail -f /var/log/squid/access.log ;;
   *) cat <<USAGE
 usage:
