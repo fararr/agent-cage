@@ -1,23 +1,37 @@
-# agent-server — agent dev environment on a Hetzner Cloud box
+# agent-server — sandboxed coding agents on a Hetzner Cloud box
 
 > Working on this repo with an agent? Read `CLAUDE.md` first — it carries the
 > invariants, the decisions already settled, and the traps already hit.
 
-## Why there's no Lima here
+## What this is
 
-Hetzner Cloud doesn't expose `/dev/kvm` — no nested virtualization. Lima's QEMU
-would fall back to software emulation and be unusably slow.
+A disposable Hetzner Cloud server that runs Claude Code and Codex CLI against
+PHP projects, with the agents' network access enforced from outside the
+container they run in.
 
-You don't need it. **The Hetzner instance is the VM.** Their hypervisor gives
-you the kernel boundary, and Hetzner Cloud Firewall enforces egress *outside*
-the machine entirely — stronger than anything achievable on a laptop, where the
-guest could in principle rewrite its own rules.
+The agents run with `--dangerously-skip-permissions` and
+`--dangerously-bypass-approvals-and-sandbox`. Nobody approves individual
+commands. **The network is the control surface instead**: an agent that can
+reach `api.anthropic.com` and nothing else has nowhere to send your source and
+nothing hostile to pull in, so what it runs inside the box matters far less.
+
+Three nested boundaries, each enforced further out than the thing it contains:
 
 ```
 Hetzner Cloud Firewall     outside the server — root on the box cannot touch it
   └─ Ubuntu host           squid allowlist + iptables
       └─ container         no route out except squid; agent runs here
 ```
+
+Containers get no DNS and no route to the internet. Everything goes through a
+squid allowlist on the host, and which squid port is reachable *is* the current
+profile — one command swaps an agent between "registries open" and "model API
+only". Nothing from your laptop is mounted: repos are cloned on the server, and
+results leave by `git push`.
+
+The repo provides a `php-toolchain` image (PHP 8.5, Composer, Node 24) with thin
+Claude Code and Codex children, `agentctl` for day-to-day control, and a
+snapshot workflow that keeps the whole box cheap to destroy and rebuild.
 
 ## Install — 7 steps plus prerequisites
 
@@ -203,13 +217,24 @@ Unsetting `HTTP_PROXY` inside the container therefore achieves nothing.
 
 ## Rollback
 
-There is no VM snapshot here, so rollback happens at two levels:
+Two levels:
 
 - **Work in progress**: `git checkout .` / `git clean -fd` in the workspace.
 - **The whole box**: `snapshot.sh restore <server> <id>` rebuilds it from your
   image. Everything since is gone — which is the point.
 
 Take a fresh snapshot after each successful `agentctl build`.
+
+**A snapshot captures the active profile.** `agent-set-profile` writes
+`/etc/agent/profile` and saves the iptables rules via `netfilter-persistent`,
+and `agent-profile.service` re-applies them at boot. A box imaged while on
+`build` therefore comes back up on `build` — registries open — every time you
+restore it, and every server you create from that image starts the same way.
+Set the profile you want to inherit before saving:
+
+```bash
+agentctl net work && agentctl status      # profile : work
+```
 
 ## Cost
 

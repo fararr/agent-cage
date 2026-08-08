@@ -79,8 +79,8 @@ Full table: <https://code.claude.com/docs/en/network-config>.
 
 ## Environment facts
 
-- Hetzner Cloud has **no nested virtualization** (`/dev/kvm` absent). Any
-  proposal involving Lima, QEMU, or a VM inside the server is a dead end.
+- Hetzner Cloud has **no nested virtualization** (`/dev/kvm` absent), so any
+  proposal that puts a VM inside the server is a dead end.
 - Target box: CX23, 2 vCPU / 4 GB / 40 GB, Ubuntu, sudo user `honza`, SSH key
   only. 4 GB swapfile added by bootstrap; `vm.swappiness=10`.
 - Container UID is 1000 and matches `honza`, so bind mounts need no remapping.
@@ -181,9 +181,9 @@ around the build itself), then re-snapshot.
   also be one.
 - **`DOCKER-USER`, not a hand-written nftables table** — Docker on this stack
   uses iptables-nft and a separate `inet filter` table fights with its chains.
-- **Profiles keyed on squid *port*, not source IP** — carried over from the Lima
-  design where all instances shared a guest address; kept because it avoids
-  `squid -k reconfigure` on every switch. The port selects *which* profile;
+- **Profiles keyed on squid *port*, not source IP** — switching profiles is then
+  an iptables change, with no `squid -k reconfigure` on every switch. The port
+  selects *which* profile;
   it is never the only control. `squid.conf` also denies any source outside
   `172.16.0.0/12`, and `agent-set-profile` drops 3128-3130 from everywhere but
   the docker subnet — otherwise reaching an open port from outside is enough to
