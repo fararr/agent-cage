@@ -150,6 +150,50 @@ Scope the PAT to the specific repositories, Contents: read and write, nothing
 else. The agent can read this file — it has to, in order to push. Tight scoping
 is the control, not secrecy.
 
+#### Optional: pushing from the host as `honza`
+
+That PAT is the *container's* credential. To push from the host as well, know
+that **port 22 is closed**: the Cloud Firewall permits outbound 80/443/53 only,
+so a `git@github.com:` remote times out. It presents exactly like a bad key, so
+check the port before you debug the key:
+
+```bash
+timeout 8 bash -c '</dev/tcp/github.com/22'      && echo "22: open" || echo "22: BLOCKED"
+timeout 8 bash -c '</dev/tcp/ssh.github.com/443' && echo "443: open"
+```
+
+`22: BLOCKED` with `443: open` is the correct, expected state. Route SSH over
+GitHub's 443 endpoint:
+
+```bash
+ssh-keygen -t ed25519 -C "you@example.com"   # skip if you already have a key
+cat ~/.ssh/id_ed25519.pub                    # add at github.com/settings/keys
+```
+
+Then `~/.ssh/config`:
+
+```
+Host github.com
+    HostName ssh.github.com
+    User git
+    Port 443
+```
+
+```bash
+chmod 600 ~/.ssh/config
+ssh -T git@github.com      # Hi <user>! You've successfully authenticated...
+```
+
+Remote URLs stay `git@github.com:...` — the config rewrites host and port
+underneath. On first connect, check the offered fingerprint for
+`[ssh.github.com]:443` against GitHub's published host keys rather than
+accepting it blind.
+
+Host-only. Containers keep HTTPS + PAT: squid tunnels CONNECT to 443, but
+git-over-SSH through an HTTP proxy needs a `ProxyCommand`, which is more moving
+parts than a repo-scoped token is worth. And `~/.ssh/config` is host state — it
+survives a snapshot restore, not a rebuild from an older image.
+
 ### 7. Build images and log in (server)
 
 ```bash

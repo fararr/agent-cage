@@ -245,6 +245,14 @@ around the build itself), then re-snapshot.
   `.gitconfig` sets `core.pager = cat`, and `core.editor = true` so a `git
   commit` with no `-m` aborts on an empty message rather than hanging in an
   editor nobody can close. Don't remove either while `tty: true` stands.
+- The Hetzner firewall allows the host outbound **80/443/53 only**, so git over
+  SSH fails from the host: `git@github.com:` times out on port 22. It looks like
+  a key problem and is not — check the port first with
+  `timeout 8 bash -c '</dev/tcp/github.com/22'`. Either use HTTPS with the PAT,
+  or point `~/.ssh/config` at GitHub's 443 endpoint (`HostName ssh.github.com`,
+  `Port 443`, `User git`) — verified working; full example in README step 6.
+  Containers cannot take the SSH route at all: squid tunnels CONNECT to 443, but
+  git-over-SSH would need a `ProxyCommand`.
 - `sudo` over non-interactive ssh needs `ssh -t`.
 - `rsync -a agent-server/ host:~/agent/` — the trailing slash on the source is
   load-bearing.
