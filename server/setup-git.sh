@@ -25,6 +25,17 @@ cat > "$CODER/.gitconfig" <<EOF
 	directory = *
 [init]
 	defaultBranch = main
+[core]
+	# The containers run with tty: true, so git would page by default and
+	# \`git log\` would sit waiting for a keypress the agent cannot send.
+	pager = cat
+	# /bin/true exits 0 without writing, so \`git commit\` with no -m aborts
+	# on an empty message instead of hanging in an editor nobody can close.
+	editor = true
+[push]
+	autoSetupRemote = true
+[fetch]
+	prune = true
 EOF
 umask 022
 chmod 600 "$CODER/.git-credentials"

@@ -240,6 +240,11 @@ around the build itself), then re-snapshot.
   `agent-set-profile` deletes by exact spec, and `netfilter-persistent` reloads
   what it saved. After such a change, check `sudo iptables -S INPUT` for rules
   carrying the previous subnet and delete them by hand.
+- The agent containers run with `tty: true`, so git pages by default: `git log`
+  inside a session waits on a keypress that never comes. The container
+  `.gitconfig` sets `core.pager = cat`, and `core.editor = true` so a `git
+  commit` with no `-m` aborts on an empty message rather than hanging in an
+  editor nobody can close. Don't remove either while `tty: true` stands.
 - `sudo` over non-interactive ssh needs `ssh -t`.
 - `rsync -a agent-server/ host:~/agent/` — the trailing slash on the source is
   load-bearing.
