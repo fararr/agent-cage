@@ -33,10 +33,11 @@ The repo provides a `php-toolchain` image (PHP 8.5, Composer, Node 24) with thin
 Claude Code and Codex children, `agentctl` for day-to-day control, and a
 snapshot workflow that keeps the whole box cheap to destroy and rebuild.
 
-## Install — 7 steps plus prerequisites
+## Install — 8 steps plus prerequisites
 
-Steps 0-3 and 7 run on your laptop, 4-6 on the server. Do them in this order:
-the perimeter goes up *before* anything starts listening.
+Steps 0-2 and 8 run on your laptop, 3-7 on the server. Do them in this order:
+the perimeter goes up *before* anything starts listening, and the sudo user
+exists *before* anything needs it.
 
 ### 0. Prerequisites (laptop)
 
@@ -45,7 +46,7 @@ brew install hcloud                  # or apt
 hcloud context create agent          # paste an API token from the Hetzner console
 ```
 
-Needed however the server was made: steps 2 and 7 both drive the CLI.
+Needed however the server was made: steps 2 and 8 both drive the CLI.
 
 ### 1. Create the server (laptop) — skip if you made it in the web console
 
@@ -55,14 +56,17 @@ hcloud server create --name <server-name> --type cx23 \
 ```
 
 The only unscripted step. Adjust image and location to taste; the type matters
-(CX23 = 2 vCPU / 4 GB / 40 GB). Recreating from a snapshot instead? Use
-`--image <snapshot-id>` and skip to step 7.
+(CX23 = 2 vCPU / 4 GB / 40 GB).
+
+Recreating from a snapshot? Pass `--image <snapshot-id>` instead, then do step 2
+and stop — a new server has no firewall attached, but the user, images and
+credentials all came back with the image.
 
 Creating it in the console is fine — but note that a console-created server has
 **no Cloud Firewall attached**, so step 2 is doing real work, not repeating
 something the console already did.
 
-### 2. Lock the perimeter (laptop) — do this before step 4
+### 2. Lock the perimeter (laptop) — do this before step 5
 
 ```bash
 bash laptop/hcloud-setup.sh <server-name>
@@ -73,7 +77,42 @@ SSH from your IP only; outbound limited to 80/443/53. **This must precede
 with no firewall in front of it gets found by scanners within minutes. Re-run
 whenever your home IP changes.
 
-### 3. Copy this tree to the server (laptop)
+### 3. Create the sudo user and harden SSH (server)
+
+A fresh Hetzner box gives you `root` and your key, nothing else. Everything
+after this step connects as `honza` and runs `sudo`, so create that user first:
+
+```bash
+scp server/secure-init.sh root@<server-ip>:/tmp/
+ssh -t root@<server-ip> 'bash /tmp/secure-init.sh --user honza --copy-root-key'
+```
+
+`--copy-root-key` reuses the key Hetzner already injected into
+`/root/.ssh/authorized_keys`, so you don't have to paste anything. `-t` matters:
+the script prompts for a sudo password and for confirmation before restarting
+sshd.
+
+It then **disables root login and password authentication entirely** —
+`PermitRootLogin no`, `PasswordAuthentication no` — as a `00-` drop-in that wins
+over the `PasswordAuthentication yes` that cloud images ship in
+`50-cloud-init.conf`, and comments out competing directives wherever else they
+appear. It verifies with `sshd -T` (the *effective* config, after includes) and
+refuses to restart if anything is off.
+
+**Keep that root session open** until you have confirmed in a second terminal:
+
+```bash
+ssh honza@<server-ip>
+sudo whoami          # root
+```
+
+Rollback if locked out: `rm /etc/ssh/sshd_config.d/00-hardening.conf && systemctl restart ssh`.
+
+ufw stays off here. This box's INPUT chain belongs to `agent-set-profile`, and
+ufw reinserts its own chains at the top on every reload, which can cut
+containers off from squid. The Hetzner Cloud Firewall is the perimeter.
+
+### 4. Copy this tree to the server (laptop)
 
 ```bash
 rsync -a agent-server/ honza@<server-ip>:~/agent/
@@ -84,7 +123,7 @@ The **trailing slash on the source matters**: it copies the *contents* of
 `~/agent/laptop/`. Without it you would get `~/agent/agent-server/server/`.
 Check with `ssh honza@<server-ip> ls ~/agent`.
 
-### 4. Bootstrap (server)
+### 5. Bootstrap (server)
 
 ```bash
 ssh -t honza@<server-ip> 'cd ~/agent/server && sudo bash bootstrap.sh'
@@ -97,7 +136,7 @@ Installs Docker, squid, 4 GB swap, the profile switcher, and the directory
 layout. Idempotent — this is also the repair path, so re-run it rather than
 patching files on the box.
 
-### 5. Git identity and credentials (server)
+### 6. Git identity and credentials (server)
 
 ```bash
 cd ~/agent/server && bash setup-git.sh
@@ -111,7 +150,7 @@ Scope the PAT to the specific repositories, Contents: read and write, nothing
 else. The agent can read this file — it has to, in order to push. Tight scoping
 is the control, not secrecy.
 
-### 6. Build images and log in (server)
+### 7. Build images and log in (server)
 
 ```bash
 agentctl net build      # doctor needs the registries reachable
@@ -135,7 +174,7 @@ Three rules exactly: `ACCEPT` the profile's port from `172.16.0.0/12`, `REJECT`
 all three from `172.16.0.0/12`, `DROP` all three from everywhere else. Stray
 single-port `ACCEPT` lines mean an old profile was never closed.
 
-### 7. Snapshot the working state (laptop)
+### 8. Snapshot the working state (laptop)
 
 ```bash
 bash laptop/snapshot.sh save <server-name>

@@ -96,8 +96,9 @@ stay on the same PHP version.
 ## Layout
 
 ```
-server/     bootstrap.sh, setup-git.sh, agentctl, agent-set-profile,
-            squid.conf, domains/          → deployed to ~/agent/ on the box
+server/     secure-init.sh, bootstrap.sh, setup-git.sh, agentctl,
+            agent-set-profile, squid.conf, domains/
+                                          → deployed to ~/agent/ on the box
 image/      php-toolchain/ + claudecode/ + codex/ + docker-compose.yml
 laptop/     hcloud-setup.sh, snapshot.sh  → run on the operator's Mac
 ```
@@ -176,6 +177,10 @@ around the build itself), then re-snapshot.
 
 - **Docker, not a VM, on this host** — no nested virt, and the cloud instance
   already provides the kernel boundary.
+- **No ufw** — `secure-init.sh` defaults it off. ufw reinserts its chains at the
+  top of `INPUT` on every reload, above the rules `agent-set-profile` puts at
+  position 1, which can cut containers off from squid. Same family of reasoning
+  as the nftables decision below: one owner per chain.
 - **No `userns-remap`** — it breaks `user: "1000:1000"` against bind mounts
   (files appear as `nobody`). The host is the boundary; the container need not
   also be one.
