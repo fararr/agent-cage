@@ -1,4 +1,4 @@
-# agent-server — sandboxed coding agents on a Hetzner Cloud box
+# agent-cage — sandboxed coding agents on a Hetzner Cloud box
 
 > Working on this repo with an agent? Read `CLAUDE.md` first — it carries the
 > invariants, the decisions already settled, and the traps already hit.
@@ -115,12 +115,12 @@ containers off from squid. The Hetzner Cloud Firewall is the perimeter.
 ### 4. Copy this tree to the server (laptop)
 
 ```bash
-rsync -a agent-server/ honza@<server-ip>:~/agent/
+rsync -a agent-cage/ honza@<server-ip>:~/agent/
 ```
 
 The **trailing slash on the source matters**: it copies the *contents* of
-`agent-server/`, so you get `~/agent/server/`, `~/agent/image/`,
-`~/agent/laptop/`. Without it you would get `~/agent/agent-server/server/`.
+`agent-cage/`, so you get `~/agent/server/`, `~/agent/image/`,
+`~/agent/laptop/`. Without it you would get `~/agent/agent-cage/server/`.
 Check with `ssh honza@<server-ip> ls ~/agent`.
 
 ### 5. Bootstrap (server)

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# agent-server
+# agent-cage
 
 Sandbox for running coding agents (Claude Code, Codex CLI) against PHP projects
 on a Hetzner Cloud box, isolated from the operator's laptop and from a separate
@@ -119,7 +119,7 @@ change to any of them needs a redeploy, not just an rsync.
 The loop:
 
 ```bash
-rsync -a agent-server/ honza@<server-ip>:~/agent/      # trailing slash!
+rsync -a agent-cage/ honza@<server-ip>:~/agent/      # trailing slash!
 ssh -t honza@<server-ip> 'cd ~/agent/server && sudo bash bootstrap.sh'
 ssh honza@<server-ip> 'agentctl doctor'                # ~30s, proves the proxy path
 ```
@@ -254,7 +254,7 @@ around the build itself), then re-snapshot.
   Containers cannot take the SSH route at all: squid tunnels CONNECT to 443, but
   git-over-SSH would need a `ProxyCommand`.
 - `sudo` over non-interactive ssh needs `ssh -t`.
-- `rsync -a agent-server/ host:~/agent/` — the trailing slash on the source is
+- `rsync -a agent-cage/ host:~/agent/` — the trailing slash on the source is
   load-bearing.
 
 ## Conventions
