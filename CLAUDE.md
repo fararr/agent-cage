@@ -270,8 +270,9 @@ around the build itself), then re-snapshot.
 
 - No host-side rule pins the *server's* own egress to squid; only containers are
   constrained. The Hetzner Cloud Firewall limits the host to 80/443/53.
-- `hcloud-setup.sh` hardcodes the operator's current IP for SSH; re-run when it
-  changes.
+- `hcloud-setup.sh` pins the SSH rule to whatever `icanhazip.com` returns at the
+  moment it runs. Nothing re-checks it afterwards, so the rule goes stale when
+  the operator's IP changes — re-run it.
 - No automated restore test for the snapshot workflow.
 - Squid runs without TLS interception (CONNECT passthrough), so allowlisting is
   by hostname only — it cannot see paths or block a specific repo on an allowed

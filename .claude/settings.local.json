@@ -4,7 +4,8 @@
       "Bash(bash -n server/bootstrap.sh)",
       "Bash(sh -n server/agent-set-profile)",
       "Bash(bash -n server/bootstrap.sh server/setup-git.sh server/agentctl laptop/*.sh)",
-      "Bash(bash -n laptop/hcloud-setup.sh laptop/snapshot.sh)"
+      "Bash(bash -n laptop/hcloud-setup.sh laptop/snapshot.sh)",
+      "Bash(grep -v '^$')"
     ]
   }
 }
