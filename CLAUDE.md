@@ -284,6 +284,13 @@ around the build itself), then re-snapshot.
   denied, IPv6 included, so ssh to the server's v6 address times out with the
   same signature as a stale IP. Use the v4 address, or `ssh -4`.
 - `sudo` over non-interactive ssh needs `ssh -t`.
+- `agentctl` is *copied* to `/usr/local/bin`, but `docker-compose.yml` is read in
+  place from `~/agent/image/`. An rsync without `bootstrap.sh` therefore leaves a
+  stale `agentctl` driving a current compose file, and since projects became an
+  argument that combination fails **silently**: the old branch discards the
+  project name, nothing exports `AGENT_WORKDIR`, compose falls back to its
+  default, and the session starts in `default_project` with no error at all.
+  `grep -c default_project /usr/local/bin/agentctl` is 0 when it is stale.
 - `rsync -a agent-cage/ host:~/agent/` — the trailing slash on the source is
   load-bearing.
 
