@@ -74,8 +74,22 @@ bash laptop/hcloud-setup.sh <server-name>
 
 SSH from your IP only; outbound limited to 80/443/53. **This must precede
 `bootstrap.sh`**, which starts squid: a proxy listening on a public interface
-with no firewall in front of it gets found by scanners within minutes. Re-run
-whenever your home IP changes.
+with no firewall in front of it gets found by scanners within minutes.
+
+**Re-run this exact command whenever you change network** — office, home, train.
+The SSH rule is pinned to the address you had when it last ran, so a new one
+locks you out, and it presents as ssh timing out on port 22, which reads like a
+broken key rather than a firewall. Re-running is safe at any time: `replace-rules`
+rewrites all four rules with your current address, and it runs before the attach
+step, so your access is back even if re-attaching an already-attached firewall
+reports an error.
+
+Keeping this script as the only thing that writes firewall rules is deliberate.
+A second script that re-points only the SSH rule would be a second owner of the
+whole rule set, since `replace-rules` is all-or-nothing.
+
+The rule covers one IPv4 `/32`, so connecting to the server's IPv6 address fails
+the same way — use the v4 address or `ssh -4`.
 
 ### 3. Create the sudo user and harden SSH (server)
 
@@ -235,11 +249,16 @@ That snapshot is your rollback point: images built, both CLIs authenticated.
 ## Daily use
 
 ```bash
+bash laptop/hcloud-setup.sh <server-name>   # from the laptop, after any network change
 ssh honza@<server-ip>
 tmux new -s work
 agentctl status                       # profile, memory, containers
 agentctl logs                         # watch what it reaches for
 ```
+
+The first line is only needed when your public IP has moved since you last ran
+it, but running it every time costs a second and saves diagnosing a timeout as a
+key problem. See step 2.
 
 **A container reads its proxy port once, at startup.** Everything below follows
 from that: you choose the profile *before* starting a session, and changing it

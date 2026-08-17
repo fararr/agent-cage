@@ -280,6 +280,9 @@ around the build itself), then re-snapshot.
   `Port 443`, `User git`) — verified working; full example in README step 6.
   Containers cannot take the SSH route at all: squid tunnels CONNECT to 443, but
   git-over-SSH would need a `ProxyCommand`.
+- The Cloud Firewall's inbound rule is a single IPv4 `/32`. Everything else is
+  denied, IPv6 included, so ssh to the server's v6 address times out with the
+  same signature as a stale IP. Use the v4 address, or `ssh -4`.
 - `sudo` over non-interactive ssh needs `ssh -t`.
 - `rsync -a agent-cage/ host:~/agent/` — the trailing slash on the source is
   load-bearing.
@@ -298,8 +301,12 @@ around the build itself), then re-snapshot.
 - No host-side rule pins the *server's* own egress to squid; only containers are
   constrained. The Hetzner Cloud Firewall limits the host to 80/443/53.
 - `hcloud-setup.sh` pins the SSH rule to whatever `icanhazip.com` returns at the
-  moment it runs. Nothing re-checks it afterwards, so the rule goes stale when
-  the operator's IP changes — re-run it.
+  moment it runs, and nothing re-checks it afterwards, so the rule goes stale on
+  every change of network. Re-running the script is the whole fix, and it is
+  deliberately the *only* thing that writes firewall rules: `replace-rules` is
+  all-or-nothing, so a second script re-pointing just SSH would own all four.
+  Still open in that nothing warns before the lockout, which presents as ssh
+  timing out on port 22 and reads exactly like a broken key.
 - No automated restore test for the snapshot workflow.
 - Squid runs without TLS interception (CONNECT passthrough), so allowlisting is
   by hostname only — it cannot see paths or block a specific repo on an allowed

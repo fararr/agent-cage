@@ -7,7 +7,10 @@ MYIP=$(curl -fsS https://ipv4.icanhazip.com)
 
 hcloud firewall describe agent-fw >/dev/null 2>&1 || hcloud firewall create --name agent-fw
 
-# Inbound: SSH from you only.
+# Inbound: SSH from you only. Re-running this script is how you re-point that
+# rule after moving network: replace-rules rewrites all four with the current
+# address. It runs BEFORE apply-to-resource, so access is already restored even
+# if re-attaching an attached firewall turns out to complain.
 hcloud firewall replace-rules agent-fw --rules-file /dev/stdin <<JSON
 [
   {"direction":"in","protocol":"tcp","port":"22","source_ips":["${MYIP}/32"]},
