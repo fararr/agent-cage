@@ -135,9 +135,36 @@ sudo squid -k parse                     # on the box only, after deploying
 ```
 
 Day-to-day on the box: `agentctl status`, `agentctl net <profile>`,
-`agentctl build`, `agentctl claude|codex`, `agentctl deps -- composer install`
-(opens registries, then restores the profile you were on — which is `build`
-itself if that is where you already were), `agentctl logs`.
+`agentctl build`, `agentctl claude|codex [project]`, `agentctl deps -- composer
+install` (opens registries, then restores the profile you were on — which is
+`build` itself if that is where you already were), `agentctl logs`.
+
+## One session per project
+
+A session sees exactly one project and nothing else. `agentctl claude|codex
+<project>` mounts `project_workspace/<project>` — the single directory, not its
+parent — at `/workspace/<project>`:
+
+```bash
+agentctl claude myshop      # project_workspace/myshop  → /workspace/myshop
+agentctl claude             # project_workspace/default_project
+```
+
+**The parent `project_workspace` is never mounted.** There is no invocation that
+exposes it, so one project's session cannot read or write another's, and a
+compromised or confused agent cannot wander sideways. Omitting the name selects
+`default_project`, created by `bootstrap.sh`, rather than widening the mount —
+that is the whole reason a default project exists.
+
+The path being distinct per project matters a second time over: Claude Code keys
+its history and memory on the working directory, so notes taken in one project
+stay out of another's context.
+
+Adding a project is `git clone` into `~/agent/project_workspace/<name>`; the
+name is then the argument. Sessions are meant to be run one at a time — nothing
+stops two, but the network profile is one global setting for the box, the PAT is
+one file shared by every session, and the resource limits above assume a single
+agent on a CX23.
 
 ## Where a profile actually lives
 

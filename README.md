@@ -144,7 +144,13 @@ cd ~/agent/server && bash setup-git.sh
 
 Prompts for name, email, forge username and a **fine-grained PAT**, writes
 `~/agent/coder/.git-credentials` at 0600, and optionally clones your repo into
-`~/agent/project_workspace/`.
+`~/agent/project_workspace/<name>`.
+
+Each directory under `~/agent/project_workspace/` is one project, and a session
+mounts exactly one of them — `agentctl claude <name>`. The parent directory is
+never mounted, so a session cannot reach any project but its own. With no name
+you get `default_project`, created for you by `bootstrap.sh`; clone into it if
+you only ever work on one thing.
 
 Scope the PAT to the specific repositories, Contents: read and write, nothing
 else. The agent can read this file — it has to, in order to push. Tight scoping
@@ -248,13 +254,15 @@ agentctl net build && agentctl claude
 agentctl net work                     # or locked, when you step away
 
 # It doesn't — session stays on `work`, deps run from the host.
-agentctl claude                       # second window:
-agentctl deps -- composer install     # separate container, same /workspace
+agentctl claude myshop                    # second window:
+agentctl deps myshop -- composer install  # separate container, same project
 ```
 
 `agentctl deps` flips to `build`, runs one short-lived container against the
-same `../project_workspace` mount, and restores your profile on the way out —
-including when the command fails. `vendor/` lands where the session sees it.
+same project mount, and restores your profile on the way out — including when
+the command fails. `vendor/` lands where the session sees it. Name the same
+project the session is on: with the name omitted both default to
+`default_project`, which is right only if that is where the session is.
 
 It restores the profile you *were* on, not `work`. Start from `build` and it
 prints `profile: build` on both sides; that is the restore working, not failing

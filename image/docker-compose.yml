@@ -1,6 +1,8 @@
 # ~/agent/image/docker-compose.yml
 x-common: &common
-  working_dir: /workspace
+  # Set by agentctl. The fallbacks keep a bare `docker compose run` on the same
+  # one-project-per-session rule; the parent project_workspace is never mounted.
+  working_dir: ${AGENT_WORKDIR:-/workspace/default_project}
   stdin_open: true
   tty: true
   user: "1000:1000"
@@ -26,7 +28,7 @@ x-env: &env
   PIP_CACHE_DIR: /home/node/.cache/pip
 
 x-vols: &vols
-  - ../project_workspace:/workspace
+  - ${AGENT_PROJECT_DIR:-../project_workspace/default_project}:${AGENT_WORKDIR:-/workspace/default_project}
   - ../coder/.composer:/home/node/.composer
   - ../coder/.cache/pip:/home/node/.cache/pip
   - ../coder/.gitconfig:/home/node/.gitconfig:ro
@@ -54,7 +56,7 @@ services:
         CLAUDE_CODE_VERSION: "2.1.202"
     image: claude-code-local:php8.5-2.1.202
     volumes:
-      - ../project_workspace:/workspace
+      - ${AGENT_PROJECT_DIR:-../project_workspace/default_project}:${AGENT_WORKDIR:-/workspace/default_project}
       - ../coder/.claude:/home/node/.claude
       - ../coder/.composer:/home/node/.composer
       - ../coder/.cache/pip:/home/node/.cache/pip
@@ -81,7 +83,7 @@ services:
         CODEX_VERSION: "0.145.0"
     image: codex-local:php8.5-0.145.0
     volumes:
-      - ../project_workspace:/workspace
+      - ${AGENT_PROJECT_DIR:-../project_workspace/default_project}:${AGENT_WORKDIR:-/workspace/default_project}
       - ../coder/.codex:/home/node/.codex
       - ../coder/.composer:/home/node/.composer
       - ../coder/.cache/pip:/home/node/.cache/pip

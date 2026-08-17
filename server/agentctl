@@ -13,8 +13,18 @@ case "${1:-}" in
     echo "proxy   : $(grep -m1 HTTPS_PROXY /etc/agent/proxy.env 2>/dev/null || true)"
     free -h | awk 'NR<3'
     docker ps --format '  {{.Names}}\t{{.Status}}' ;;
-  claude) cd "$IMAGE_DIR"; docker compose run --rm claude ;;
-  codex)  cd "$IMAGE_DIR"; docker compose run --rm codex ;;
+  claude|codex)
+    svc=$1
+    proj=${2:-default_project}
+    cd "$IMAGE_DIR"
+    dir="$ROOT/project_workspace/$proj"
+    # A typo would otherwise be created by docker as an empty directory.
+    [ -d "$dir" ] || { echo "no such project: $proj" >&2; exit 1; }
+    # One project per session: the parent project_workspace is never mounted, so
+    # a session cannot reach any project but its own. The distinct path also
+    # keeps each project's agent history and memory apart.
+    export AGENT_PROJECT_DIR="$dir" AGENT_WORKDIR="/workspace/$proj"
+    docker compose run --rm "$svc" ;;
   doctor)
     echo "profile   : $(cat /etc/agent/profile 2>/dev/null || echo unknown)"
     echo "proxy.env : $(grep -m1 HTTPS_PROXY /etc/agent/proxy.env || true)"
@@ -36,11 +46,18 @@ case "${1:-}" in
     docker compose build claude codex ;;
   deps)   # run dependency installs with registries reachable, then close up
     shift
+    # A leading argument naming a real project selects it; anything else is the
+    # start of the command. Must match the project the session is on, or the
+    # install lands in a workspace nobody is looking at.
+    proj=default_project
+    if [ -d "$ROOT/project_workspace/${1:-}" ]; then proj=$1; shift; fi
     # Tolerate both `deps -- cmd` and `deps cmd`. The image ENTRYPOINT is
     # already ["/usr/bin/tini", "--"], so overriding it and adding another `--`
     # here handed tini a program literally named `--`: exec -- failed.
     if [ "${1:-}" = "--" ]; then shift; fi
-    [ $# -gt 0 ] || { echo "usage: agentctl deps -- <command>" >&2; exit 1; }
+    [ $# -gt 0 ] || { echo "usage: agentctl deps [project] -- <command>" >&2; exit 1; }
+    export AGENT_PROJECT_DIR="$ROOT/project_workspace/$proj" \
+           AGENT_WORKDIR="/workspace/$proj"
     cd "$IMAGE_DIR"
     prev=$(cat /etc/agent/profile 2>/dev/null || echo work)
     trap 'sudo /usr/local/sbin/agent-set-profile "$prev"' EXIT
@@ -52,9 +69,12 @@ usage:
   agentctl net <build|work|locked|offline>   switch network profile
   agentctl status                            profile, memory, running containers
   agentctl build                             build/rebuild all images
-  agentctl claude | codex                    start an agent session
-  agentctl deps -- composer install          registries open; run from the host,
-                                             not inside a live agent session
+  agentctl claude|codex [project]            start an agent session on one
+                                             project (default: default_project)
+  agentctl deps [project] -- composer install
+                                             registries open; run from the host,
+                                             not inside a live agent session.
+                                             Name the same project as the session
   agentctl doctor                            verify the proxy path before building
   agentctl logs                              watch what the agent is reaching for
 USAGE

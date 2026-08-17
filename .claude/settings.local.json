@@ -5,7 +5,11 @@
       "Bash(sh -n server/agent-set-profile)",
       "Bash(bash -n server/bootstrap.sh server/setup-git.sh server/agentctl laptop/*.sh)",
       "Bash(bash -n laptop/hcloud-setup.sh laptop/snapshot.sh)",
-      "Bash(grep -v '^$')"
+      "Bash(grep -v '^$')",
+      "Bash(bash -n server/agentctl)",
+      "Bash(docker compose *)",
+      "Bash(AGENT_PROJECT_DIR=/tmp AGENT_WORKDIR=/workspace/demo docker compose -f image/docker-compose.yml config)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

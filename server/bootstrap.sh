@@ -29,7 +29,9 @@ fi
 
 echo "==> layout"
 install -d -o "$AGENT_USER" -g "$AGENT_USER" \
-  "$ROOT" "$ROOT/project_workspace" "$ROOT/coder" \
+  "$ROOT" "$ROOT/project_workspace" \
+  "$ROOT/project_workspace/default_project" \
+  "$ROOT/coder" \
   "$ROOT/coder/.claude" "$ROOT/coder/.codex" \
   "$ROOT/coder/.composer" "$ROOT/coder/.cache" "$ROOT/coder/.cache/pip"
 mkdir -p /etc/agent && chown "$AGENT_USER":"$AGENT_USER" /etc/agent

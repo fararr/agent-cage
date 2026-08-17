@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$HOME/agent"
 CODER="$ROOT/coder"
-mkdir -p "$CODER" "$ROOT/project_workspace"
+mkdir -p "$CODER" "$ROOT/project_workspace/default_project"
 
 read -rp "Git user.name         : " GIT_NAME
 read -rp "Git user.email        : " GIT_EMAIL
