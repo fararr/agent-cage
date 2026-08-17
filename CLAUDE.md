@@ -45,17 +45,20 @@ Do not break these without saying so explicitly:
 `agentctl net <profile>` → `/usr/local/sbin/agent-set-profile` flips which squid
 port is reachable from the docker subnet. That port *is* the profile.
 
-| profile | squid port | model API | git hosting | package registries |
-|---------|-----------|-----------|-------------|--------------------|
-| build   | 3128 | yes | yes | yes |
-| work    | 3129 | yes | yes | no  |
-| locked  | 3130 | yes | no  | no  |
-| offline | —    | no  | no  | no  |
+| profile | squid port | model API | git hosting | package registries | docs + temp |
+|---------|-----------|-----------|-------------|--------------------|-------------|
+| build   | 3128 | yes | yes | yes | yes |
+| work    | 3129 | yes | yes | no  | yes |
+| locked  | 3130 | yes | no  | no  | no  |
+| offline | —    | no  | no  | no  | no  |
 
-Default is `work`. `locked` is the one that earns the right to skip approvals.
+Default is `work`. `locked` is the one that earns the right to skip approvals,
+which is why neither `docs.txt` nor `temp.txt` reaches it: squid cannot see
+inside an allowed host, so every extra hostname is another place to exfiltrate.
 
-Allowlists: `server/domains/{model,scm,pkg}.txt`. A build failure that looks like
-a network error is usually a missing domain — check
+Allowlists: `server/domains/{model,scm,pkg,docs}.txt`, plus `temp.txt`, which
+exists only on the box — see [Temporary grants](#temporary-grants). A build
+failure that looks like a network error is usually a missing domain — check
 `sudo tail -30 /var/log/squid/access.log` for `TCP_DENIED`. A squid denial
 reaches the agent as `HTTP CONNECT failed with status 403`. Editing a domain
 file needs `squid -k reconfigure` (or `bootstrap.sh`); only *profile* switches
@@ -76,6 +79,61 @@ account auth. The rest of its published list is already switched off in
 omitted: `code.claude.com`, which only serves docs lookups — expect the
 `claude-code-guide` agent and pre-approved WebFetch to fail, nothing else.
 Full table: <https://code.claude.com/docs/en/network-config>.
+
+## Temporary grants
+
+Three durations, one mechanism. They differ only in when the list is emptied.
+
+**Long-term** — a domain the project always needs. Add it to the matching file
+under `server/domains/`, commit, rsync, `bootstrap.sh`. It is reviewed like any
+other change and survives a rebuild. `docs.txt` is where reference material goes
+(`.shopify.dev` today).
+
+**Time-boxed and session-only** — a domain needed for one task, most often a
+vendor console the agent has to click through once. These go in
+`/etc/squid/domains/temp.txt` on the box, never in the repo:
+
+```bash
+sudo tee /etc/squid/domains/temp.txt <<'EOF'
+partners.shopify.com
+accounts.shopify.com
+EOF
+sudo squid -k reconfigure
+```
+
+Revoking is the same file with the sentinel back in it:
+
+```bash
+printf 'disabled.invalid\n' | sudo tee /etc/squid/domains/temp.txt
+sudo squid -k reconfigure
+```
+
+For a fixed window, let systemd do the revoking — no package to install, and
+naming the unit makes it inspectable:
+
+```bash
+sudo systemd-run --on-active=2h --unit=agent-temp-revoke \
+  /bin/sh -c 'printf "disabled.invalid\n" > /etc/squid/domains/temp.txt; squid -k reconfigure'
+
+systemctl list-timers 'agent-temp-revoke*'      # what is pending
+sudo systemctl stop agent-temp-revoke.timer     # cancel early
+```
+
+`agentctl status` prints the active grant, or `none`. That line exists because
+the failure mode here is not a bad grant, it is a forgotten one.
+
+None of this touches sudoers: `honza` types a password interactively, so
+`agent-set-profile` remains the only NOPASSWD entry.
+
+Two things to keep in view when granting. Squid is CONNECT passthrough with no
+TLS interception, so a hostname is all-or-nothing — allowing a vendor console
+allows every operation on it, not the one the task needs. And the agent runs
+without command approval, so the allowlist *is* the gate: a grant window should
+be an attended one. A timer protects you from forgetting, not from the agent.
+
+Discovering which domains a task needs is the same loop as any other missing
+entry: grant a starting set, run it, then read `TCP_DENIED` out of
+`/var/log/squid/access.log` and add exactly what was refused.
 
 ## Environment facts
 

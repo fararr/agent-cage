@@ -57,6 +57,11 @@ chmod 644 "$ROOT/coder/.gitconfig"
 echo "==> squid"
 install -d /etc/squid/domains
 cp -f "$HERE"/domains/*.txt /etc/squid/domains/
+# temp.txt is deliberately not in the repo, so the glob above never touches it:
+# a temporary grant survives a redeploy of everything else, and a revoked one
+# stays revoked. Seeded with a domain that resolves to nothing, because squid
+# rejects an ACL file with no entries at all.
+[ -f /etc/squid/domains/temp.txt ] || printf 'disabled.invalid\n' > /etc/squid/domains/temp.txt
 cp -f "$HERE"/squid.conf /etc/squid/squid.conf
 squid -k parse
 systemctl enable --now squid

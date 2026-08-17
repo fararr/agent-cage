@@ -326,16 +326,51 @@ Detach with `Ctrl-b d`; the session survives disconnection. Reattach with
 
 ## Network profiles
 
-| profile | model API | git hosting | registries | use for |
-|---------|-----------|-------------|------------|---------|
-| `build`   | ✓ | ✓ | ✓ | `agentctl build`, `deps`, attended sessions that install their own deps |
-| `work`    | ✓ | ✓ | — | **default** |
-| `locked`  | ✓ | — | — | unattended runs, untrusted repos |
-| `offline` | — | — | — | executing code you don't trust |
+| profile | model API | git hosting | registries | docs + temp | use for |
+|---------|-----------|-------------|------------|-------------|---------|
+| `build`   | ✓ | ✓ | ✓ | ✓ | `agentctl build`, `deps`, attended sessions that install their own deps |
+| `work`    | ✓ | ✓ | — | ✓ | **default** |
+| `locked`  | ✓ | — | — | — | unattended runs, untrusted repos |
+| `offline` | — | — | — | — | executing code you don't trust |
 
 `agentctl net locked` is what earns the right to run agents without approving
 each command: reachable destinations are `api.anthropic.com` and nothing else,
-so there is nowhere to exfiltrate to and nothing hostile to pull in.
+so there is nowhere to exfiltrate to and nothing hostile to pull in. That is
+also why the docs and temporary lists stop at `work` — every allowed hostname
+is somewhere data could go.
+
+### Letting the agent reach something new
+
+Reference material the project always needs goes in `server/domains/docs.txt`,
+committed like any other change, then rsync and `bootstrap.sh`.
+
+A domain needed for one task — a vendor console the agent has to click through
+once — goes in `/etc/squid/domains/temp.txt` on the box, which is deliberately
+not in the repo:
+
+```bash
+sudo tee /etc/squid/domains/temp.txt <<'EOF'
+partners.shopify.com
+EOF
+sudo squid -k reconfigure                         # grant
+
+printf 'disabled.invalid\n' | sudo tee /etc/squid/domains/temp.txt
+sudo squid -k reconfigure                         # revoke
+```
+
+To revoke on a timer instead of remembering:
+
+```bash
+sudo systemd-run --on-active=2h --unit=agent-temp-revoke \
+  /bin/sh -c 'printf "disabled.invalid\n" > /etc/squid/domains/temp.txt; squid -k reconfigure'
+```
+
+`agentctl status` shows the active grant. Don't guess the domain list — grant
+what you expect, run the task, and read `sudo tail -30 /var/log/squid/access.log`
+for `TCP_DENIED` lines naming what was actually refused.
+
+Squid sees hostnames, not paths, so allowing a console allows everything on it.
+Grant windows should be attended; the timer stops you forgetting, not the agent.
 
 Enforcement has three independent layers, none inside the container:
 

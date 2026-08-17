@@ -11,6 +11,9 @@ case "${1:-}" in
   status)
     echo "profile : $(cat /etc/agent/profile 2>/dev/null || echo unknown)"
     echo "proxy   : $(grep -m1 HTTPS_PROXY /etc/agent/proxy.env 2>/dev/null || true)"
+    # A temporary grant you forgot is the failure mode worth surfacing.
+    tmp=$(grep -v '^disabled\.invalid$' /etc/squid/domains/temp.txt 2>/dev/null | tr '\n' ' ')
+    echo "temp    : ${tmp:-none}"
     free -h | awk 'NR<3'
     docker ps --format '  {{.Names}}\t{{.Status}}' ;;
   claude|codex)
