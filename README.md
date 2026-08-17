@@ -160,14 +160,11 @@ Prompts for name, email, forge username and a **fine-grained PAT**, writes
 `~/agent/coder/.git-credentials` at 0600, and optionally clones your repo into
 `~/agent/project_workspace/<name>`.
 
-Each directory under `~/agent/project_workspace/` is one project, and a session
-mounts exactly one of them — `agentctl claude <name>`. The parent directory is
-never mounted, so a session cannot reach any project but its own. With no name
-you get `default_project`, created for you by `bootstrap.sh`; clone into it if
-you only ever work on one thing.
+That clone target is one project; see [Projects](#projects) under Daily use for
+working with more than one.
 
-Scope the PAT to the specific repositories, Contents: read and write, nothing
-else. The agent can read this file — it has to, in order to push. Tight scoping
+Scope the PAT to every repository you intend to work on, Contents: read and
+write, nothing else. The agent can read this file — it has to, in order to push. Tight scoping
 is the control, not secrecy.
 
 #### Optional: pushing from the host as `honza`
@@ -227,6 +224,9 @@ agentctl claude         # log in, then /exit
 agentctl codex          # log in, then exit
 ```
 
+Logging in needs no project — these land in `default_project`, and the
+credentials are stored under `~/agent/coder/`, so they apply to every project.
+
 Then confirm the network model is actually in force:
 
 ```bash
@@ -260,6 +260,35 @@ The first line is only needed when your public IP has moved since you last ran
 it, but running it every time costs a second and saves diagnosing a timeout as a
 key problem. See step 2.
 
+### Projects
+
+Every directory under `~/agent/project_workspace/` is one project, and a session
+mounts exactly one of them:
+
+```bash
+ls ~/agent/project_workspace/         # what you have
+agentctl claude myshop                # work on myshop
+agentctl codex myshop                 # or the other agent, same project
+agentctl claude                       # no name: default_project
+```
+
+The argument is the directory name, nothing more. **The parent directory is
+never mounted**, so an agent working on `myshop` cannot see, read or write any
+other project — that is the reason a `default_project` exists rather than the
+bare command widening the mount.
+
+Add a project by cloning into that directory. The clone runs on the host, so it
+needs the PAT explicitly and does not care which profile you are on:
+
+```bash
+git -c credential.helper="store --file=$HOME/agent/coder/.git-credentials" \
+    clone <url> ~/agent/project_workspace/myshop
+```
+
+Switching projects is just a different argument next time you start a session.
+Each project keeps its own agent history and memory, because the in-container
+path differs.
+
 **A container reads its proxy port once, at startup.** Everything below follows
 from that: you choose the profile *before* starting a session, and changing it
 afterwards does not reach that session — it closes the port the session is
@@ -269,7 +298,7 @@ So pick the session shape by whether the agent installs its own dependencies:
 
 ```bash
 # It does — attended work. Registries reachable for the whole session.
-agentctl net build && agentctl claude
+agentctl net build && agentctl claude myshop
 agentctl net work                     # or locked, when you step away
 
 # It doesn't — session stays on `work`, deps run from the host.

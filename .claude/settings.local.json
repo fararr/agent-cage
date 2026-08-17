@@ -12,7 +12,8 @@
       "Bash(python3 -c ' *)",
       "Bash(chmod +x laptop/ssh-allow.sh)",
       "Bash(bash -n server/bootstrap.sh server/agentctl server/setup-git.sh laptop/*.sh)",
-      "Bash(bash -n laptop/*.sh server/bootstrap.sh server/agentctl server/setup-git.sh)"
+      "Bash(bash -n laptop/*.sh server/bootstrap.sh server/agentctl server/setup-git.sh)",
+      "Bash(bash -n laptop/*.sh server/agentctl server/bootstrap.sh server/setup-git.sh)"
     ]
   }
 }
