@@ -21,8 +21,15 @@ case "${1:-}" in
     free -h | awk 'NR<3'
     docker ps --format '  {{.Names}}\t{{.Status}}' ;;
   claude|codex)
-    svc=$1
-    proj=${2:-default_project}
+    svc=$1; shift
+    # A bare first argument is the project; anything starting with `-` is already
+    # a flag for the CLI, so `agentctl claude --resume <id>` still means the
+    # default project rather than a project literally called `--resume`.
+    proj=default_project
+    case "${1:-}" in
+      ""|-*) ;;
+      *) proj=$1; shift ;;
+    esac
     cd "$IMAGE_DIR"
     dir="$ROOT/project_workspace/$proj"
     # A typo would otherwise be created by docker as an empty directory.
@@ -31,7 +38,16 @@ case "${1:-}" in
     # a session cannot reach any project but its own. The distinct path also
     # keeps each project's agent history and memory apart.
     export AGENT_PROJECT_DIR="$dir" AGENT_WORKDIR="/workspace/$proj"
-    docker compose run --rm "$svc" ;;
+    # With no extra flags, let compose supply the command. Compose has no way to
+    # *append* to it, so passing flags means restating it here — keep these two
+    # in step with `command:` in docker-compose.yml.
+    if [ $# -eq 0 ]; then
+      docker compose run --rm "$svc"
+    elif [ "$svc" = claude ]; then
+      docker compose run --rm claude claude --dangerously-skip-permissions "$@"
+    else
+      docker compose run --rm codex codex --dangerously-bypass-approvals-and-sandbox "$@"
+    fi ;;
   doctor)
     echo "profile   : $(cat /etc/agent/profile 2>/dev/null || echo unknown)"
     echo "proxy.env : $(grep -m1 HTTPS_PROXY /etc/agent/proxy.env || true)"
@@ -94,8 +110,12 @@ usage:
                                              no allowlist — attended use only
   agentctl status                            profile, memory, running containers
   agentctl build                             build/rebuild all images
-  agentctl claude|codex [project]            start an agent session on one
-                                             project (default: default_project)
+  agentctl claude|codex [project] [args...]  start an agent session on one
+                                             project (default: default_project);
+                                             trailing args go to the CLI, e.g.
+                                             `claude myshop --resume <id>`.
+                                             Name the project for a bare
+                                             subcommand: `codex myshop resume`
   agentctl deps [project] -- composer install
                                              registries open; run from the host,
                                              not inside a live agent session.

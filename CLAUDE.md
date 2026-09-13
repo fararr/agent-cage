@@ -228,6 +228,15 @@ The path being distinct per project matters a second time over: Claude Code keys
 its history and memory on the working directory, so notes taken in one project
 stay out of another's context.
 
+Anything after the project name is handed to the CLI, so a session killed by a
+Docker restart comes back with `agentctl claude <project> --resume <id>` (or
+`--continue` for the most recent). Session history lives in
+`coder/.claude/projects/<path-key>/`, keyed on the working directory — so the
+ids you can resume are per project, and resuming requires the same project the
+session ran in. A leading `-` marks the first argument as a flag rather than a
+project; a bare subcommand like `codex resume` does not, so name the project
+explicitly for those.
+
 Adding a project is `git clone` into `~/agent/project_workspace/<name>`; the
 name is then the argument. Sessions are meant to be run one at a time — nothing
 stops two, but the network profile is one global setting for the box, the PAT is
