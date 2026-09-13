@@ -6,10 +6,14 @@ IMAGE_DIR="$ROOT/image"
 
 case "${1:-}" in
   net)
-    prof=${2:?usage: agentctl net <build|work|locked|offline>}
+    prof=${2:?usage: agentctl net <build|work|locked|open|offline>}
     sudo /usr/local/sbin/agent-set-profile "$prof" ;;
   status)
-    echo "profile : $(cat /etc/agent/profile 2>/dev/null || echo unknown)"
+    prof=$(cat /etc/agent/profile 2>/dev/null || echo unknown)
+    echo "profile : $prof"
+    if [ "$prof" = open ]; then
+      echo "          ^ NO allowlist. Attended use; check: agentctl domains"
+    fi
     echo "proxy   : $(grep -m1 HTTPS_PROXY /etc/agent/proxy.env 2>/dev/null || true)"
     # A temporary grant you forgot is the failure mode worth surfacing.
     tmp=$(grep -v '^disabled\.invalid$' /etc/squid/domains/temp.txt 2>/dev/null | tr '\n' ' ')
@@ -67,9 +71,27 @@ case "${1:-}" in
     sudo /usr/local/sbin/agent-set-profile build
     docker compose run --rm claude "$@" ;;
   logs)   sudo tail -f /var/log/squid/access.log ;;
+  domains)
+    # Every request already lands in access.log, in every profile — this only
+    # groups it. Field 7 is the URL, which for CONNECT is host:443; field 4 is
+    # CODE/STATUS, so TCP_DENIED marks a host the allowlist refused.
+    sudo awk '{
+        h = $7
+        sub(/^[a-z]+:\/\//, "", h)   # scheme first: a GET logs a full URL
+        sub(/\/.*$/, "", h)          # then the path
+        sub(/:.*$/, "", h)           # then the port a CONNECT carries
+        if (h == "" || h == "-") next
+        n[h]++
+        if ($4 ~ /DENIED/) d[h]++
+      }
+      END {
+        for (h in n) printf "%7d  %-45s %s\n", n[h], h, (h in d ? "(" d[h] " denied)" : "")
+      }' /var/log/squid/access.log | sort -rn ;;
   *) cat <<USAGE
 usage:
-  agentctl net <build|work|locked|offline>   switch network profile
+  agentctl net <build|work|locked|open|offline>
+                                             switch network profile; `open` has
+                                             no allowlist — attended use only
   agentctl status                            profile, memory, running containers
   agentctl build                             build/rebuild all images
   agentctl claude|codex [project]            start an agent session on one
@@ -80,6 +102,7 @@ usage:
                                              Name the same project as the session
   agentctl doctor                            verify the proxy path before building
   agentctl logs                              watch what the agent is reaching for
+  agentctl domains                           every host it has reached, by count
 USAGE
      exit 1 ;;
 esac

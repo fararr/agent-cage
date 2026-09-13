@@ -231,11 +231,11 @@ Then confirm the network model is actually in force:
 
 ```bash
 agentctl status                                   # profile : work
-sudo iptables -S INPUT | grep -E '312[89]|3130'   # one ACCEPT, one REJECT, one DROP
+sudo iptables -S INPUT | grep -E '313[01]|312[89]' # one ACCEPT, one REJECT, one DROP
 ```
 
 Three rules exactly: `ACCEPT` the profile's port from `172.16.0.0/12`, `REJECT`
-all three from `172.16.0.0/12`, `DROP` all three from everywhere else. Stray
+all four from `172.16.0.0/12`, `DROP` all four from everywhere else. Stray
 single-port `ACCEPT` lines mean an old profile was never closed.
 
 ### 8. Snapshot the working state (laptop)
@@ -331,7 +331,22 @@ Detach with `Ctrl-b d`; the session survives disconnection. Reattach with
 | `build`   | ✓ | ✓ | ✓ | ✓ | `agentctl build`, `deps`, attended sessions that install their own deps |
 | `work`    | ✓ | ✓ | — | ✓ | **default** |
 | `locked`  | ✓ | — | — | — | unattended runs, untrusted repos |
+| `open`    | everything — no allowlist |||| exploratory work, sitting with it |
 | `offline` | — | — | — | — | executing code you don't trust |
+
+`open` is the lazy way through a task whose domains you cannot predict: nothing
+to enumerate, nothing to grant. It keeps every control except the allowlist —
+still no direct route out, still no DNS in the container, still CONNECT to 443
+only — but the allowlist was what made running without command approval a
+reasonable trade, so stay with the session. Afterwards:
+
+```bash
+agentctl domains          # every host reached, most-used first
+```
+
+Move the ones you'll need again into `docs.txt` or `temp.txt`, then
+`agentctl net work`. That turns an open session into a real allowlist instead of
+a habit.
 
 `agentctl net locked` is what earns the right to run agents without approving
 each command: reachable destinations are `api.anthropic.com` and nothing else,

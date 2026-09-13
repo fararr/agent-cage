@@ -1,5 +1,5 @@
 #!/bin/sh
-# agent-set-profile <build|work|locked|offline>
+# agent-set-profile <build|work|locked|open|offline>
 #
 # Containers can NEVER route to the internet directly: DOCKER-USER drops all
 # forwarded traffic, unconditionally. The only way out is squid on the host,
@@ -14,9 +14,18 @@ case "$1" in
   build)   PORT=3128 ;;
   work)    PORT=3129 ;;
   locked)  PORT=3130 ;;
+  open)    PORT=3131 ;;
   offline) PORT="" ;;
-  *) echo "usage: agent-set-profile <build|work|locked|offline>" >&2; exit 1 ;;
+  *) echo "usage: agent-set-profile <build|work|locked|open|offline>" >&2; exit 1 ;;
 esac
+
+# Every proxy port, so the rules below cover all of them however many there are.
+PORTS=3128,3129,3130,3131
+# The spec in use before `open` existed. Deletion matches the exact spec a rule
+# was added with, so rules saved under the old three-port spec are invisible to
+# the new one and would stay in INPUT for ever, keeping a port open that the
+# current profile believes is shut.
+PORTS_LEGACY=3128,3129,3130
 
 # 1. containers get no direct route out, ever
 iptables -F DOCKER-USER 2>/dev/null || true
@@ -30,19 +39,21 @@ iptables -A DOCKER-USER -j DROP
 #    `net build`, a container reached 3128 again just by pointing HTTP_PROXY at
 #    it, and netfilter-persistent carried that across reboots. Loop, because
 #    duplicates have probably already accumulated.
-for p in 3128 3129 3130; do
+for p in 3128 3129 3130 3131; do
   while iptables -D INPUT -s "$DOCKER_NETS" -p tcp --dport "$p" -j ACCEPT 2>/dev/null; do :; done
 done
-while iptables -D INPUT -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j REJECT 2>/dev/null; do :; done
-while iptables -D INPUT -p tcp -m multiport --dports 3128,3129,3130 -j DROP 2>/dev/null; do :; done
+for spec in "$PORTS" "$PORTS_LEGACY"; do
+  while iptables -D INPUT -s "$DOCKER_NETS" -p tcp -m multiport --dports "$spec" -j REJECT 2>/dev/null; do :; done
+  while iptables -D INPUT -p tcp -m multiport --dports "$spec" -j DROP 2>/dev/null; do :; done
+done
 
 #    Anything that is not a container is dropped outright. squid's ACLs are
 #    keyed on port, not source, so any host that reaches an open port can use
 #    the proxy for every destination that port allows. Inserted first so it
 #    lands *below* the docker rules: accept the profile port, reject the other
 #    two from containers, drop all three from everywhere else.
-iptables -I INPUT 1 -p tcp -m multiport --dports 3128,3129,3130 -j DROP
-iptables -I INPUT 1 -s "$DOCKER_NETS" -p tcp -m multiport --dports 3128,3129,3130 -j REJECT
+iptables -I INPUT 1 -p tcp -m multiport --dports "$PORTS" -j DROP
+iptables -I INPUT 1 -s "$DOCKER_NETS" -p tcp -m multiport --dports "$PORTS" -j REJECT
 if [ -n "$PORT" ]; then
   iptables -I INPUT 1 -s "$DOCKER_NETS" -p tcp --dport "$PORT" -j ACCEPT
 fi

@@ -50,7 +50,16 @@ port is reachable from the docker subnet. That port *is* the profile.
 | build   | 3128 | yes | yes | yes | yes |
 | work    | 3129 | yes | yes | no  | yes |
 | locked  | 3130 | yes | no  | no  | no  |
+| open    | 3131 | **everything — no allowlist** ||||
 | offline | —    | no  | no  | no  | no  |
+
+`open` exists because enumerating hostnames for an exploratory task costs more
+attention than it is worth. It keeps every control except the allowlist: no
+direct route out, no DNS in the container, CONNECT to 443 only, docker subnet
+only. What it removes is the one control that made skipping command approval
+defensible, so it is an attended mode — use it to *find out* what a task needs,
+then move those domains into `docs.txt` or `temp.txt` and switch back.
+`agentctl domains` reads them straight out of the access log.
 
 Default is `work`. `locked` is the one that earns the right to skip approvals,
 which is why neither `docs.txt` nor `temp.txt` reaches it: squid cannot see
@@ -195,7 +204,8 @@ sudo squid -k parse                     # on the box only, after deploying
 Day-to-day on the box: `agentctl status`, `agentctl net <profile>`,
 `agentctl build`, `agentctl claude|codex [project]`, `agentctl deps [project] --
 composer install` (opens registries, then restores the profile you were on —
-which is `build` itself if that is where you already were), `agentctl logs`.
+which is `build` itself if that is where you already were), `agentctl logs`,
+`agentctl domains` (every host reached so far, grouped, with denials marked).
 
 ## One session per project
 
@@ -229,7 +239,7 @@ agent on a CX23.
 `agent-set-profile` is the only place the four representations of "the current
 profile" are kept in step, and they are not interchangeable:
 
-1. `iptables INPUT` — REJECT 3128-3130 from `172.16.0.0/12`, then ACCEPT the one
+1. `iptables INPUT` — REJECT 3128-3131 from `172.16.0.0/12`, then ACCEPT the one
    port for this profile. This is the enforcement; the rest is plumbing.
 2. `/etc/agent/profile` — the string, read back by `agentctl status` and by
    `agent-profile.service` to re-apply the rules after a reboot.
@@ -275,7 +285,7 @@ around the build itself), then re-snapshot.
   an iptables change, with no `squid -k reconfigure` on every switch. The port
   selects *which* profile;
   it is never the only control. `squid.conf` also denies any source outside
-  `172.16.0.0/12`, and `agent-set-profile` drops 3128-3130 from everywhere but
+  `172.16.0.0/12`, and `agent-set-profile` drops 3128-3131 from everywhere but
   the docker subnet — otherwise reaching an open port from outside is enough to
   use the proxy, since the profile ACLs carry no source restriction.
 - **Fine-grained PAT, mounted read-only at `/home/node/.git-credentials`** — the
