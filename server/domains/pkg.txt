@@ -9,3 +9,6 @@ deb.debian.org
 security.debian.org
 files.pythonhosted.org
 pypi.org
+.npmjs.org
+.npmjs.com
+registry.yarnpkg.com
