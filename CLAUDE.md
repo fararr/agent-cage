@@ -157,8 +157,13 @@ entry: grant a starting set, run it, then read `TCP_DENIED` out of
 ## Pinned versions
 
 PHP 8.5 (`php:8.5-cli-bookworm`), Composer 2.8, pecl redis 6.3.0, Node 24,
-Claude Code 2.1.202, Codex 0.145.0. Bump deliberately; both agent images must
+Claude Code 2.1.311, Codex 0.167.2. Bump deliberately; both agent images must
 stay on the same PHP version.
+
+Claude Code publishes a `stable` dist-tag distinct from `latest` (`latest`
+tracks `next`), so take `stable`. Codex has no such tag; `latest` is the
+release. Check both with
+`npm view @anthropic-ai/claude-code dist-tags` / `npm view @openai/codex dist-tags`.
 
 Chromium is the one exception: it comes from bookworm unpinned, because Debian
 drops old binaries from the mirror and a pinned version becomes an unbuildable

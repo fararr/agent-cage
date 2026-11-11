@@ -1,6 +1,6 @@
 ARG BASE=php-toolchain:8.5
 FROM ${BASE}
-ARG CLAUDE_CODE_VERSION=2.1.202
+ARG CLAUDE_CODE_VERSION=2.1.311
 
 USER root
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \

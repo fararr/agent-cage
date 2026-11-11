@@ -1,6 +1,6 @@
 ARG BASE=php-toolchain:8.5
 FROM ${BASE}
-ARG CODEX_VERSION=0.145.0
+ARG CODEX_VERSION=0.167.2
 
 USER root
 RUN npm install -g @openai/codex@${CODEX_VERSION} \
