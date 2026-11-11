@@ -2,3 +2,6 @@ coder/
 project_workspace/
 *.tar.gz
 .env
+# Per-machine Claude Code state: it gains an entry every time a permission is
+# approved, so it rode along in unrelated commits. Local tooling, not shared.
+.claude/settings.local.json
