@@ -160,6 +160,11 @@ PHP 8.5 (`php:8.5-cli-bookworm`), Composer 2.8, pecl redis 6.3.0, Node 24,
 Claude Code 2.1.202, Codex 0.145.0. Bump deliberately; both agent images must
 stay on the same PHP version.
 
+Chromium is the one exception: it comes from bookworm unpinned, because Debian
+drops old binaries from the mirror and a pinned version becomes an unbuildable
+image. Screenshots need `--no-sandbox` (`cap_drop: [ALL]` leaves Chromium no way
+to build its own sandbox) and `--disable-dev-shm-usage` (`/dev/shm` is 64 MB).
+
 ## Layout
 
 ```
@@ -170,9 +175,10 @@ image/      php-toolchain/ + claudecode/ + codex/ + docker-compose.yml
 laptop/     hcloud-setup.sh, snapshot.sh  → run on the operator's Mac
 ```
 
-`php-toolchain:8.5` carries PHP, 15 extensions, Composer and Node — a ~12 minute
-build. The two agent images are five-line children adding only their CLI, so a
-version bump rebuilds in a minute and the PHP versions cannot drift apart.
+`php-toolchain:8.5` carries PHP, 15 extensions, Composer, Node and Chromium — a
+~12 minute build. The two agent images are five-line children adding only their
+CLI, so a version bump rebuilds in a minute and the PHP versions cannot drift
+apart.
 
 ## Working on this repo
 

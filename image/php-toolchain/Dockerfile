@@ -56,6 +56,23 @@ RUN if [ -n "${HTTP_PROXY:-}" ]; then \
 
 COPY --from=composer:2.8 /usr/bin/composer /usr/local/bin/composer
 
+# Chromium for headless screenshots. Here rather than in the two agent images
+# because they share this base: installed once it costs ~500 MB of disk once,
+# and claude and codex cannot drift onto different versions. Late in the file so
+# adding or dropping it does not invalidate the PHP extension layers above.
+#
+# Deliberately unpinned, unlike everything in "Pinned versions": Debian rotates
+# old binaries off the mirror, so a pinned apt version turns into an unbuildable
+# image a few months later. It tracks bookworm security updates instead.
+#
+# fonts-liberation is the fallback for anything the page does not self-host; it
+# covers Czech diacritics. Note that `cap_drop: [ALL]` in docker-compose.yml
+# leaves Chromium no way to set up its own sandbox, so it must be run with
+# --no-sandbox (and --disable-dev-shm-usage, since /dev/shm defaults to 64 MB).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends chromium fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd -m -u 1000 -s /bin/bash node \
     && mkdir -p /workspace /home/node/.local/bin /home/node/.composer /home/node/.cache/pip \
     && chown -R node:node /workspace /home/node
